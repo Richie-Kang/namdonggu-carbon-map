@@ -121,7 +121,8 @@ function addLayers(map: MlMap) {
     // covered the basemap with a translucent grey blanket.
     filter: ['has', 'co2_quintile'],
     maxzoom: BUILDING_MIN_ZOOM,
-    paint: { 'fill-color': QUINTILE_COLOR, 'fill-opacity': 0.35 },
+    // reason: 0.35 was too faint over CARTO Voyager's industrial pink tint.
+    paint: { 'fill-color': QUINTILE_COLOR, 'fill-opacity': 0.55 },
   });
 }
 
@@ -150,6 +151,9 @@ function bindClicks(
     const f = ev.features?.[0];
     if (!f) return;
     const grid = f.properties?.grid_id ? String(f.properties.grid_id) : null;
+    // reason: drop a pin on the clicked grid cell so the user can spot which
+    // one is selected — same affordance as for buildings.
+    setPin(ev.lngLat.lng, ev.lngLat.lat);
     // reason: close any open building panel so the grid card isn't hidden
     // behind it; also clear the marker pin.
     setSelected(null);

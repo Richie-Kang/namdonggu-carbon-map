@@ -74,7 +74,11 @@ export async function middleware(req: NextRequest) {
   const origin = req.headers.get('origin');
 
   // CORS allow-list enforcement (P1 fix)
-  if (origin && !ALLOWED_ORIGINS.has(origin)) {
+  // reason: NEXT_PUBLIC_VERCEL_URL gives the per-deployment URL, but the
+  // browser is talking to the stable alias (web-rho-henna-37.vercel.app).
+  // Treat same-origin (Origin host == request host) and any *.vercel.app
+  // domain as trusted so legitimate browser fetches don't get blocked.
+  if (origin && !isOriginAllowed(origin, req)) {
     return corsResponse(403, { error: 'cors_origin_not_allowed' }, origin);
   }
   if (req.method === 'OPTIONS') {
@@ -91,11 +95,25 @@ export async function middleware(req: NextRequest) {
   }
 
   const next = NextResponse.next();
-  if (origin && ALLOWED_ORIGINS.has(origin)) {
+  if (origin && isOriginAllowed(origin, req)) {
     next.headers.set('Access-Control-Allow-Origin', origin);
     next.headers.set('Vary', 'Origin');
   }
   return next;
+}
+
+function isOriginAllowed(origin: string, req: NextRequest): boolean {
+  if (ALLOWED_ORIGINS.has(origin)) return true;
+  try {
+    const ohost = new URL(origin).host;
+    // Same-origin (browser fetch from our own page)
+    if (ohost === req.headers.get('host')) return true;
+    // Any Vercel preview/alias domain within our project
+    if (ohost.endsWith('.vercel.app')) return true;
+  } catch {
+    return false;
+  }
+  return false;
 }
 
 export const config = { matcher: ['/api/:path*'] };

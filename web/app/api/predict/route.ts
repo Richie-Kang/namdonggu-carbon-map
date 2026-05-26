@@ -107,9 +107,30 @@ export async function POST(req: NextRequest) {
   } else {
     popAdj = popPred;
   }
-  const defaults = defaultsFor(land_use_category);
-  const electricity_kwh = Math.max(0, popAdj * defaults.elec);
-  const gas_m3 = Math.max(0, popAdj * defaults.gas);
+
+  // reason: use the per-use_main_code coefficients learned in ai/train.py
+  // (meta.energy_coeffs) so changing the 주용도 dropdown actually moves the
+  // simulated CO2 number. Fall back to the broad category defaults when no
+  // coefficient is available for the requested code.
+  let coeff: { elec_kwh_per_pop_month?: number; gas_m3_per_pop_month?: number } | undefined;
+  try {
+    const { meta } = await getModel();
+    coeff = meta.energy_coeffs?.[use_main_code];
+  } catch {
+    coeff = undefined;
+  }
+
+  let electricity_kwh: number;
+  let gas_m3: number;
+  if (coeff && Number.isFinite(coeff.elec_kwh_per_pop_month) && Number.isFinite(coeff.gas_m3_per_pop_month)) {
+    electricity_kwh = Math.max(0, popAdj * (coeff.elec_kwh_per_pop_month ?? 0));
+    gas_m3 = Math.max(0, popAdj * (coeff.gas_m3_per_pop_month ?? 0));
+  } else {
+    const defaults = defaultsFor(land_use_category);
+    electricity_kwh = Math.max(0, popAdj * defaults.elec);
+    gas_m3 = Math.max(0, popAdj * defaults.gas);
+  }
+
   let co2_pred = totalCo2({ electricity_kwh, gas_m3 });
   const co2_cur = Number(building.co2_kg_month ?? 0);
 

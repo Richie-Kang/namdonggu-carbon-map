@@ -14,7 +14,10 @@ let cached: Promise<{ session: Session; meta: ModelMeta }> | null = null;
 export type ModelMeta = {
   version: string;
   feature_cols: string[];
-  energy_coeffs: Record<string, { elec_kwh_per_pop: number; gas_m3_per_pop: number }>;
+  energy_coeffs: Record<
+    string,
+    { elec_kwh_per_pop_month?: number; gas_m3_per_pop_month?: number; n_buildings?: number }
+  >;
   emission_factors: { electricity_kg_per_kwh: number; gas_kg_per_m3: number };
 };
 
