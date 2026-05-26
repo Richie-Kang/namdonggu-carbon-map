@@ -35,7 +35,7 @@ python etl/01_load_shapefiles.py
 python etl/02_join_energy.py
 python etl/02b_distribute_to_buildings.py
 python etl/03_attach_attributes.py
-python etl/04_sgis_population.py
+python etl/04_load_population_grid.py   # KOSIS 100m grid (ADR-0019)
 python etl/05_compute_emissions.py
 python etl/06_make_grid.py
 bash etl/07_export_pmtiles.sh
@@ -54,7 +54,9 @@ pnpm playwright test
 ```
 
 ## Required environment variables
-See `.env.example`. SGIS Open API 키는 [통계청 SGIS](https://sgis.kostat.go.kr/developer/) 에서 발급.
+See `.env.example`. 격자 인구는 KOSIS 다사 ZIP을 `data/9_인구밀도/`에 두면
+ETL 04가 직접 적재합니다(ADR-0019 참고). SGIS Open API 키는 더 이상 필수가
+아니며, `.env`의 `SGIS_*` 항목은 비워두어도 됩니다.
 
 ## Layout
 | Path | What |

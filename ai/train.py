@@ -49,9 +49,12 @@ def spatial_folds(df: pd.DataFrame, k: int = 5) -> np.ndarray:
 
     centroid_lookup: dict[str, tuple[float, float]] = {}
     with connect() as conn, conn.cursor() as cur:
-        cur.execute("select grid_id, st_x(st_centroid(geom)) lon, st_y(st_centroid(geom)) lat from grid_500m_pop")
+        cur.execute(
+            "select grid_cd, st_x(st_centroid(geom)) lon, st_y(st_centroid(geom)) lat "
+            "from grid_pop_100m"
+        )
         for r in cur.fetchall():
-            centroid_lookup[r["grid_id"]] = (float(r["lon"]), float(r["lat"]))
+            centroid_lookup[r["grid_cd"]] = (float(r["lon"]), float(r["lat"]))
 
     # Fallback: average building centroid (lat/lon) per grid_id from df.
     if "centroid_lon" not in df.columns:

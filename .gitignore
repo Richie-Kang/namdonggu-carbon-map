@@ -23,6 +23,7 @@ build/
 
 # Data (large, regenerable)
 data/
+**/extracted/
 *.shp
 *.shx
 *.dbf

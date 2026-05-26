@@ -62,9 +62,11 @@ def build_features(conn: psycopg.Connection) -> pd.DataFrame:
                 group by bd.building_id
             ),
             grid as (
-                select bd.building_id, g.grid_id, g.population
+                -- ADR-0004 (revised): 100m KOSIS grid as ground truth.
+                -- grid_500m_pop is deprecated by ADR-0019.
+                select bd.building_id, g.grid_cd as grid_id, g.population
                 from bd
-                left join grid_500m_pop g on st_intersects(g.geom, bd.centroid)
+                left join grid_pop_100m g on st_intersects(g.geom, bd.centroid)
             )
             select bd.*, lu.category, biz.biz_50m, fac.has_fac, grid.grid_id, grid.population
             from bd

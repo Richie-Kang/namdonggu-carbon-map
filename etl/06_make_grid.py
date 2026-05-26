@@ -56,6 +56,23 @@ def main() -> int:
                 from agg a
                 where g.grid_id = a.grid_id;
             """)
+            # ADR-0004(revised): join KOSIS 100m population into our grid.
+            cur.execute("""
+                with pop as (
+                    select g.grid_id,
+                           sum(coalesce(gp.population, 0) *
+                               (st_area(st_intersection(gp.geom, g.geom)) /
+                                nullif(st_area(gp.geom), 0))) as pop
+                    from grid_100m g
+                    join grid_pop_100m gp on gp.geom && g.geom and st_intersects(gp.geom, g.geom)
+                    group by g.grid_id
+                )
+                update grid_100m g
+                set population_pred = pop.pop
+                from pop
+                where g.grid_id = pop.grid_id;
+            """)
+
             cur.execute("""
                 with q as (
                     select grid_id, ntile(5) over (order by co2_kg_month) as q

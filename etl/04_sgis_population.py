@@ -1,11 +1,9 @@
-"""ETL 04 — Fetch SGIS 격자 인구 (남동구) via Open API and store as grid_500m_pop.
+"""ETL 04 (DEPRECATED — replaced by 04_load_population_grid.py, ADR-0019).
 
-SGIS: https://sgis.kostat.go.kr/developer/
-Endpoint: /OpenAPI3/grid/population.json  (sample; adapt to actual API doc)
-Requires SGIS_CONSUMER_KEY + SGIS_CONSUMER_SECRET.
-
-If keys are missing → write empty snapshot + non-fatal exit so downstream
-스크립트 (05, 06) can still run on dummy population (P1: 더미 데이터 사용).
+Kept for reference. Fetches SGIS 500m grid population via Open API.
+Do not run unless you have neither the KOSIS 다사 ZIPs in
+`data/9_인구밀도/` nor a way to obtain them. The new pipeline uses
+100m ground-truth from KOSIS and removes the SGIS API dependency.
 """
 from __future__ import annotations
 
