@@ -9,7 +9,10 @@ const NAMDONG_CENTER: [number, number] = [126.7396, 37.4459];
 const INITIAL_ZOOM = 12;
 const BUILDING_MIN_ZOOM = 14;
 const NAMDONG_SIGUNGU_CODE = '2820000000';
-const PMTILES_URL = process.env.NEXT_PUBLIC_PMTILES_URL ?? '';
+// reason: Vercel env was registered as an empty string in prod which knocked
+// out every PMTiles layer. PMTiles ship in /public/tiles, so the same-origin
+// path is the right default whenever the env is blank.
+const PMTILES_URL = process.env.NEXT_PUBLIC_PMTILES_URL || '/tiles';
 
 // CartoDB Voyager raster — same OSM data underneath, but served from a CDN
 // that doesn't refuse vercel-hosted referrers the way tile.openstreetmap.org
