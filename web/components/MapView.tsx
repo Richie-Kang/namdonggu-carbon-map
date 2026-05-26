@@ -1,12 +1,9 @@
 'use client';
 
-import { useEffect, useMemo, useRef, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import maplibregl, { type Map as MlMap } from 'maplibre-gl';
 import { Protocol } from 'pmtiles';
-import { MapboxOverlay } from '@deck.gl/mapbox';
-import { GeoJsonLayer } from '@deck.gl/layers';
 import { useAppStore } from '@/store';
-import { quintileRGBA } from '@/lib/colors';
 import { BuildingPanel } from './BuildingPanel';
 import { SimulatorPanel } from './SimulatorPanel';
 import { Legend } from './Legend';
@@ -23,12 +20,9 @@ const PMTILES_URL = process.env.NEXT_PUBLIC_PMTILES_URL ?? '';
 export default function MapView() {
   const containerRef = useRef<HTMLDivElement | null>(null);
   const mapRef = useRef<MlMap | null>(null);
-  const overlayRef = useRef<MapboxOverlay | null>(null);
   const [ready, setReady] = useState(false);
   const [zoom, setZoom] = useState(INITIAL_ZOOM);
   const setSelected = useAppStore((s) => s.setSelected);
-  const showBuildings = useAppStore((s) => s.showBuildings);
-  const showGrid = useAppStore((s) => s.showGrid);
 
   useEffect(() => {
     if (!containerRef.current || mapRef.current) return;

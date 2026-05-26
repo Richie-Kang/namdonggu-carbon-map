@@ -14,11 +14,16 @@ type Health = {
 
 async function checkDb(): Promise<Health['db']> {
   if (!process.env.NEXT_PUBLIC_SUPABASE_URL) return 'unconfigured';
+  // reason: stub or unreachable URLs should not hang the health check.
+  const timeoutMs = 1500;
   try {
-    const { error } = await supabaseAdmin
-      .from('emission_factors')
-      .select('source', { count: 'exact', head: true });
-    return error ? 'fail' : 'ok';
+    const result = await Promise.race([
+      supabaseAdmin.from('emission_factors').select('source', { count: 'exact', head: true }),
+      new Promise<{ error: unknown }>((resolve) =>
+        setTimeout(() => resolve({ error: new Error('timeout') }), timeoutMs)
+      ),
+    ]);
+    return (result as { error: unknown }).error ? 'fail' : 'ok';
   } catch {
     return 'fail';
   }

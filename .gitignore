@@ -51,6 +51,7 @@ etl/snapshot.json
 .idea/
 *.swp
 .DS_Store
+*.tsbuildinfo
 
 # Logs
 *.log
