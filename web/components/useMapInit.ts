@@ -11,27 +11,31 @@ const BUILDING_MIN_ZOOM = 14;
 const NAMDONG_SIGUNGU_CODE = '2820000000';
 const PMTILES_URL = process.env.NEXT_PUBLIC_PMTILES_URL ?? '';
 
-// OSM standard raster basemap — matches the user-supplied reference
-// screenshot (한글 도로/지번 라벨 burned into the tiles).
+// CartoDB Voyager raster — same OSM data underneath, but served from a CDN
+// that doesn't refuse vercel-hosted referrers the way tile.openstreetmap.org
+// has been silently doing in production (Image #6).  Style mirrors DPM_project
+// reference (Image #7): roads, terrain, Korean labels burned in.
 const DEFAULT_STYLE: maplibregl.StyleSpecification = {
   version: 8,
   sources: {
-    osm: {
+    basemap: {
       type: 'raster',
       tiles: [
-        'https://a.tile.openstreetmap.org/{z}/{x}/{y}.png',
-        'https://b.tile.openstreetmap.org/{z}/{x}/{y}.png',
-        'https://c.tile.openstreetmap.org/{z}/{x}/{y}.png',
+        'https://a.basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}.png',
+        'https://b.basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}.png',
+        'https://c.basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}.png',
+        'https://d.basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}.png',
       ],
       tileSize: 256,
       maxzoom: 19,
-      attribution: '© OpenStreetMap contributors',
+      attribution:
+        '© <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> · © <a href="https://carto.com/attributions">CARTO</a>',
     },
   },
   layers: [
-    // Light grey backdrop while OSM tiles stream in (Tailwind slate-100)
+    // Light grey backdrop while basemap tiles stream in (Tailwind slate-100)
     { id: 'bg', type: 'background', paint: { 'background-color': '#f1f5f9' } },
-    { id: 'osm', type: 'raster', source: 'osm', paint: { 'raster-opacity': 1 } },
+    { id: 'basemap', type: 'raster', source: 'basemap', paint: { 'raster-opacity': 1 } },
   ],
 };
 
