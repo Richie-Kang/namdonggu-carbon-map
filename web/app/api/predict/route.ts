@@ -20,6 +20,18 @@ async function fetchBuilding(building_id: string) {
   return data;
 }
 
+async function fetchEmployees(building_id: string): Promise<number | null> {
+  // Sum of factory employees attached to this building — when 실측 인구가
+  // 측정 통계(공장 종업원수)로 직접 있을 때는 ONNX 추정보다 신뢰도 높음.
+  const { data } = await supabasePublic
+    .from('factories')
+    .select('employees')
+    .eq('building_id', building_id);
+  if (!data || data.length === 0) return null;
+  const sum = data.reduce((acc, r) => acc + (Number(r.employees) || 0), 0);
+  return sum > 0 ? sum : null;
+}
+
 function defaultsFor(category: string) {
   if (category === 'residential') return RESIDENTIAL_DEFAULT;
   if (category === 'industrial') return INDUSTRIAL_DEFAULT;
@@ -43,13 +55,19 @@ export async function POST(req: NextRequest) {
   const building = await fetchBuilding(building_id);
   if (!building) return NextResponse.json({ error: 'not_found' }, { status: 404 });
 
-  // Estimate baseline population.
-  // reason: if ONNX model unavailable, fall back to area-based heuristic.
+  // Population precedence: factory employees (measured) → ONNX → area heuristic.
+  const measuredEmployees = await fetchEmployees(building_id);
   let popPred = Math.max(1, (building.area_total ?? 100) / 25);
   let warnings: string[] = [];
   let modelVersion = 'rule-based-0.1';
+  if (measuredEmployees != null) {
+    popPred = measuredEmployees;
+    modelVersion = 'measured-employees';
+  }
 
-  try {
+  if (measuredEmployees != null) {
+    // Skip ONNX — measured wins. Keep popPred = measuredEmployees.
+  } else try {
     const { session, meta } = await getModel();
     modelVersion = meta.version;
     // Build input vector matching meta.feature_cols length (11)

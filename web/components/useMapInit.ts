@@ -29,6 +29,8 @@ const DEFAULT_STYLE: maplibregl.StyleSpecification = {
     },
   },
   layers: [
+    // Light grey backdrop while OSM tiles stream in (Tailwind slate-100)
+    { id: 'bg', type: 'background', paint: { 'background-color': '#f1f5f9' } },
     { id: 'osm', type: 'raster', source: 'osm', paint: { 'raster-opacity': 1 } },
   ],
 };
@@ -139,6 +141,9 @@ function bindClicks(
     const f = ev.features?.[0];
     if (!f) return;
     const grid = f.properties?.grid_id ? String(f.properties.grid_id) : null;
+    // reason: close any open building panel so the grid card isn't hidden
+    // behind it; also clear the marker pin.
+    setSelected(null);
     setGridFocus(grid);
   });
   for (const layer of ['buildings-fill', 'grid-fill'] as const) {

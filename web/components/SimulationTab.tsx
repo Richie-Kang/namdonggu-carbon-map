@@ -106,15 +106,27 @@ export function SimulationTab({
     [buildingId],
   );
 
-  // Fire whenever use/land changes or target changes.
+  // Fire whenever use/land/target changes. We accept the building's own
+  // use_main_code as a fallback so the simulator works even before the
+  // BuildingPanel sync effect runs.
   useEffect(() => {
-    if (!sim.use_main_code) return;
+    const useCode =
+      sim.use_main_code ||
+      ((currentBuilding.use_main_code as string | undefined) ?? '') ||
+      '04000';
+    const landCat = sim.land_use_category || 'commercial';
     callPredict({
-      use_main_code: sim.use_main_code,
-      land_use_category: sim.land_use_category,
+      use_main_code: useCode,
+      land_use_category: landCat,
       target_population: popTarget ?? undefined,
     });
-  }, [sim.use_main_code, sim.land_use_category, popTarget, callPredict]);
+  }, [
+    sim.use_main_code,
+    sim.land_use_category,
+    popTarget,
+    callPredict,
+    currentBuilding.use_main_code,
+  ]);
 
   const delta = result ? result.co2_pred - current.co2_kg_month : 0;
   const sign = delta > 0 ? '+' : '';

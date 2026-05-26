@@ -3,7 +3,7 @@
 @tailwind utilities;
 
 :root {
-  color-scheme: light dark;
+  color-scheme: light;
 }
 
 html, body, #__next {
@@ -11,7 +11,10 @@ html, body, #__next {
   margin: 0;
   padding: 0;
   font-family: system-ui, -apple-system, sans-serif;
+  background-color: #f1f5f9;
 }
+
+.maplibregl-canvas-container { background-color: #f1f5f9; }
 
 .maplibregl-map {
   font-family: inherit;
