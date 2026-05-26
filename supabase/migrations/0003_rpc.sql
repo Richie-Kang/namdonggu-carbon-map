@@ -14,9 +14,10 @@ declare
   v_factory  jsonb;
   v_recent   record;
 begin
-  set local statement_timeout = '3s';
-
-  if p_building_id !~ '^[A-Za-z0-9_-]{1,40}$' then
+  -- statement_timeout enforced at the role level (see 0004_rls.sql); per-call
+  -- SET LOCAL is disallowed inside `stable` functions, so we rely on the role
+  -- default set on `anon`/`authenticated`.
+if p_building_id !~ '^[A-Za-z0-9_-]{1,40}$' then
     raise exception 'invalid building_id format';
   end if;
 
@@ -100,9 +101,10 @@ declare
   v_features jsonb;
   v_capped int := least(coalesce(p_limit, 5000), 10000);
 begin
-  set local statement_timeout = '3s';
-
-  if (p_east - p_west) > 0.5 or (p_north - p_south) > 0.5 then
+  -- statement_timeout enforced at the role level (see 0004_rls.sql); per-call
+  -- SET LOCAL is disallowed inside `stable` functions, so we rely on the role
+  -- default set on `anon`/`authenticated`.
+if (p_east - p_west) > 0.5 or (p_north - p_south) > 0.5 then
     raise exception 'bbox too wide';
   end if;
   if p_west >= p_east or p_south >= p_north then
@@ -160,9 +162,10 @@ security invoker
 stable
 as $$
 begin
-  set local statement_timeout = '3s';
-
-  if (p_east - p_west) > 0.5 or (p_north - p_south) > 0.5 then
+  -- statement_timeout enforced at the role level (see 0004_rls.sql); per-call
+  -- SET LOCAL is disallowed inside `stable` functions, so we rely on the role
+  -- default set on `anon`/`authenticated`.
+if (p_east - p_west) > 0.5 or (p_north - p_south) > 0.5 then
     raise exception 'bbox too wide';
   end if;
 
@@ -191,9 +194,8 @@ security invoker
 stable
 as $$
 begin
-  set local statement_timeout = '2s';
-
-  return query
+  -- See note in get_building_detail — role-level timeout governs SETs.
+return query
   select jsonb_build_object(
     'building_id', b.building_id,
     'name', b.name,

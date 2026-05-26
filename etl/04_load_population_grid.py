@@ -127,46 +127,51 @@ def main() -> int:
             snap.warnings.append("merge_empty — GRID_CD vs grid_cd mismatch")
 
         inserted = 0
+        from datetime import datetime, timezone
+        from shapely import wkb as shp_wkb
+
+        now = datetime.now(timezone.utc)
+        rows_to_insert = []
+        for _, row in merged.iterrows():
+            geom = row.geometry
+            if geom is None or geom.is_empty:
+                continue
+            if not geom.is_valid:
+                geom = geom.buffer(0)
+            wkb_hex = shp_wkb.dumps(geom, srid=4326, hex=True)
+
+            def native(v):
+                if v is None or pd.isna(v):
+                    return None
+                try:
+                    return int(v)
+                except (TypeError, ValueError):
+                    return None
+
+            pop_total = native(row.get("population")) or 0
+            rows_to_insert.append((
+                str(row["GRID_CD"])[:20],
+                2024,
+                wkb_hex,
+                pop_total,
+                native(row.get("population_0_14")),
+                native(row.get("population_15_64")),
+                native(row.get("population_65_up")),
+                "kosis_2024_dasa",
+                now,
+            ))
+
         with conn.cursor() as cur:
             cur.execute("truncate grid_pop_100m")
-            with cur.copy(
-                "copy grid_pop_100m (grid_cd, year, geom, population, "
+            # reason: psycopg executemany batches well; text-coded WKB hex
+            # avoids the binary protocol numeric edge case that bit us twice.
+            cur.executemany(
+                "insert into grid_pop_100m (grid_cd, year, geom, population, "
                 "population_0_14, population_15_64, population_65_up, source, loaded_at) "
-                "from stdin with (format binary)"
-            ) as copy:
-                from datetime import datetime, timezone
-
-                now = datetime.now(timezone.utc)
-                for _, row in merged.iterrows():
-                    geom = row.geometry
-                    if geom is None or geom.is_empty:
-                        continue
-                    if not geom.is_valid:
-                        geom = geom.buffer(0)
-                    wkb_bytes = wkb.dumps(geom, srid=4326)
-
-                    def num(col):
-                        v = row.get(col)
-                        if pd.isna(v):
-                            return None
-                        try:
-                            return int(v)
-                        except (TypeError, ValueError):
-                            return None
-
-                    pop_total = num("population") or 0
-                    copy.write_row((
-                        str(row["GRID_CD"])[:20],
-                        2024,
-                        wkb_bytes,
-                        pop_total,
-                        num("population_0_14"),
-                        num("population_15_64"),
-                        num("population_65_up"),
-                        "kosis_2024_dasa",
-                        now,
-                    ))
-                    inserted += 1
+                "values (%s, %s, %s::geometry, %s, %s, %s, %s, %s, %s)",
+                rows_to_insert,
+            )
+            inserted = len(rows_to_insert)
         conn.commit()
         snap.counts["grid_pop_100m_inserted"] = inserted
 

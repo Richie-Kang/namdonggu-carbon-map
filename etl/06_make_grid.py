@@ -17,7 +17,10 @@ def main() -> int:
             cur.execute("truncate grid_100m")
             cur.execute(f"""
                 with bnd as (
-                    select st_extent(st_transform(geom, {SRID_PROJ}))::geometry as ext
+                    select st_setsrid(
+                             st_extent(st_transform(geom, {SRID_PROJ}))::geometry,
+                             {SRID_PROJ}
+                           ) as ext
                     from buildings
                 ),
                 grid as (
