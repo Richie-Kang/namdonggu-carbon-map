@@ -99,15 +99,18 @@ function addLayers(map: MlMap) {
     source: 'buildings-pmtiles',
     'source-layer': 'buildings',
     minzoom: BUILDING_MIN_ZOOM,
-    paint: { 'fill-color': QUINTILE_COLOR, 'fill-opacity': 0.78 },
+    paint: { 'fill-color': QUINTILE_COLOR, 'fill-opacity': 0.65 },
   });
   map.addLayer({
     id: 'grid-fill',
     type: 'fill',
     source: 'grid-pmtiles',
     'source-layer': 'grid',
+    // reason: only paint cells that actually have CO2 — null quintile cells
+    // covered the basemap with a translucent grey blanket.
+    filter: ['has', 'co2_quintile'],
     maxzoom: BUILDING_MIN_ZOOM,
-    paint: { 'fill-color': QUINTILE_COLOR, 'fill-opacity': 0.45 },
+    paint: { 'fill-color': QUINTILE_COLOR, 'fill-opacity': 0.35 },
   });
 }
 

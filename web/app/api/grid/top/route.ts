@@ -11,12 +11,12 @@ export async function GET(req: NextRequest) {
   if (!GRID_ID_RE.test(gridId)) {
     return NextResponse.json({ error: 'invalid_grid_id' }, { status: 400 });
   }
-  const { data, error } = await supabasePublic.rpc('top_buildings_in_grid', {
+  const { data, error } = await supabasePublic.rpc('get_grid_summary', {
     p_grid_id: gridId,
   });
   if (error) return NextResponse.json({ error: error.message }, { status: 500 });
   return NextResponse.json(
-    { rows: data ?? [] },
+    data ?? { error: 'not_found' },
     { headers: { 'Cache-Control': 's-maxage=60, stale-while-revalidate=300' } }
   );
 }

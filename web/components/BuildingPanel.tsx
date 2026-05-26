@@ -64,7 +64,9 @@ export function BuildingPanel() {
   useEffect(() => {
     if (!selected) return;
     if (!data?.building) return;
-    const code = (b.use_main_code as string | undefined) ?? '';
+    // reason: fall back to 제2종근린생활시설 when the source data has no
+    // use_main_code — otherwise the simulator silently never fires.
+    const code = ((b.use_main_code as string | undefined) || '').trim() || '04000';
     resetSim(
       {
         use_main_code: code,
