@@ -103,18 +103,29 @@ def evaluate(
     r2_raw = r2_score(y_true, y_raw) if y_true.var() > 0 else float("nan")
 
     # Grid violation on RAW predictions (true measure of model fit to constraint).
-    df = pd.DataFrame({"gid": grid_ids, "pred": y_raw, "pop": grid_pop})
-    grouped = df.groupby("gid").agg({"pred": "sum", "pop": "first"})
-    grouped = grouped[grouped["pop"] > 0]
+    df_raw = pd.DataFrame({"gid": grid_ids, "pred": y_raw, "pop": grid_pop})
+    grouped_raw = df_raw.groupby("gid").agg({"pred": "sum", "pop": "first"})
+    grouped_raw = grouped_raw[grouped_raw["pop"] > 0]
     viol_raw = (
-        float(np.mean(np.abs(grouped["pred"] - grouped["pop"]) / grouped["pop"]))
-        if len(grouped) else float("nan")
+        float(np.mean(np.abs(grouped_raw["pred"] - grouped_raw["pop"]) / grouped_raw["pop"]))
+        if len(grouped_raw) else float("nan")
+    )
+
+    # Grid violation on POST-PROCESSED predictions — this is what end users see
+    # and the figure ADR-0004 gates on (≤15%).
+    df_post = pd.DataFrame({"gid": grid_ids, "pred": y_post, "pop": grid_pop})
+    grouped_post = df_post.groupby("gid").agg({"pred": "sum", "pop": "first"})
+    grouped_post = grouped_post[grouped_post["pop"] > 0]
+    viol_post = (
+        float(np.mean(np.abs(grouped_post["pred"] - grouped_post["pop"]) / grouped_post["pop"]))
+        if len(grouped_post) else float("nan")
     )
 
     mae_post = mean_absolute_error(y_true, y_post)
     LOG.info(
         f"eval.{name} mae_raw={mae_raw:.3f} mae_post={mae_post:.3f} "
-        f"rmse_raw={rmse_raw:.3f} r2_raw={r2_raw:.3f} viol_raw={viol_raw:.3f}"
+        f"rmse_raw={rmse_raw:.3f} r2_raw={r2_raw:.3f} "
+        f"viol_raw={viol_raw:.3f} viol_post={viol_post:.3f}"
     )
     return {
         "mae_raw": float(mae_raw),
@@ -122,6 +133,7 @@ def evaluate(
         "rmse_raw": float(rmse_raw),
         "r2_raw": float(r2_raw),
         "grid_violation_raw": float(viol_raw),
+        "grid_violation_post": float(viol_post),
     }
 
 
@@ -237,7 +249,12 @@ def main() -> int:
         snap.metrics["mae_post_mean"] = float(np.mean([m["mae_post"] for m in fold_metrics]))
         snap.metrics["rmse_raw_mean"] = float(np.mean([m["rmse_raw"] for m in fold_metrics]))
         snap.metrics["r2_raw_mean"] = float(np.nanmean([m["r2_raw"] for m in fold_metrics]))
-        snap.metrics["grid_violation_raw_mean"] = float(np.nanmean([m["grid_violation_raw"] for m in fold_metrics]))
+        snap.metrics["grid_violation_raw_mean"] = float(
+            np.nanmean([m["grid_violation_raw"] for m in fold_metrics])
+        )
+        snap.metrics["grid_violation_post_mean"] = float(
+            np.nanmean([m.get("grid_violation_post", float("nan")) for m in fold_metrics])
+        )
         snap.metrics["baseline_mae_mean"] = float(np.mean([m["baseline_mae"] for m in fold_metrics]))
         # Regression guard: model must not be worse than 5% over baseline MAE.
         if snap.metrics["mae_raw_mean"] > snap.metrics["baseline_mae_mean"] * 1.05:

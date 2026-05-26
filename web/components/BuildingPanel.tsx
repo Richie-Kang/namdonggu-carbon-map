@@ -1,9 +1,15 @@
 'use client';
 
 import useSWR from 'swr';
+import dynamic from 'next/dynamic';
 import { useAppStore } from '@/store';
 import { ActionRecommender } from './ActionRecommender';
-import { EnergyChart } from './EnergyChart';
+
+// P2: recharts is ~80KB gzipped — load only when a building is selected.
+const EnergyChart = dynamic(() => import('./EnergyChart').then((m) => m.EnergyChart), {
+  ssr: false,
+  loading: () => <div className="h-40 w-full animate-pulse rounded bg-slate-100" />,
+});
 
 type BuildingDetail = {
   building?: Record<string, unknown>;

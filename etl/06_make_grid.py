@@ -67,7 +67,13 @@ def main() -> int:
                 from q
                 where g.grid_id = q.grid_id;
             """)
-            cur.execute("delete from grid_100m where building_count = 0 and co2_kg_month is null;")
+            # P2 fix: co2_kg_month defaults to 0, so original `is null` clause
+            # never matched. Treat zero or unmeasured cells consistently.
+            cur.execute(
+                "delete from grid_100m "
+                "where building_count = 0 "
+                "  and (co2_kg_month is null or co2_kg_month = 0)"
+            )
             cur.execute("select count(*) c from grid_100m")
             snap.counts["grid_cells"] = int(cur.fetchone()["c"])
         conn.commit()

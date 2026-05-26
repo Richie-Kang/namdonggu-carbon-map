@@ -11,6 +11,18 @@ def main() -> int:
     conn = connect()
     try:
         with conn.cursor() as cur:
+            # P2 fix: load emission factors from DB instead of inlining constants.
+            cur.execute("select source, factor from emission_factors")
+            factors = {r["source"]: float(r["factor"]) for r in cur.fetchall()}
+            elec = factors.get("electricity")
+            gas = factors.get("gas_lng")
+            if elec is None or gas is None:
+                raise RuntimeError(
+                    "emission_factors table missing rows for electricity/gas_lng — run seed.sql"
+                )
+            snap.metrics["factor_electricity"] = elec
+            snap.metrics["factor_gas_lng"] = gas
+
             cur.execute("truncate building_energy")
             cur.execute("""
                 with parcel_area as (
@@ -37,10 +49,10 @@ def main() -> int:
                 join shares s on s.pnu = e.pnu
                 where s.share is not null
             """)
-            cur.execute("""
-                update building_energy
-                set co2_kg = electricity_kwh * 0.4781 + gas_m3 * 2.176
-            """)
+            cur.execute(
+                "update building_energy set co2_kg = electricity_kwh * %s + gas_m3 * %s",
+                (elec, gas),
+            )
 
             # integrity check: building_energy sum ≈ energy_monthly sum (ratio 1.00 ± 0.0001)
             cur.execute("""

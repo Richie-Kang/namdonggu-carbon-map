@@ -1,9 +1,11 @@
-"""harness/eval_ai.py — AI evaluation gate.
+"""harness/eval_ai.py — AI evaluation gate (P2: align with ADR-0004).
 
-Thresholds:
-  - grid_violation_mean ≤ 0.15
-  - R² (mean fold) ≥ -0.5 (loose due to pseudo-labels; report only)
-  - baseline-vs-model: model MAE ≤ 1.05 × baseline MAE (no regression)
+ADR-0004 thresholds:
+  - R² ≥ 0.4                       (gate on r2_raw_mean)
+  - 격자합계 위반율 ≤ 15%          (gate on grid_violation_post_mean, the
+                                    user-visible value after constrained
+                                    post-processing — raw is diagnostic)
+  - baseline guard: model MAE ≤ 1.05 × area-share baseline MAE
 """
 from __future__ import annotations
 
@@ -15,8 +17,9 @@ MODEL_DIR = Path(__file__).resolve().parents[1] / "ai" / "models"
 META_PATH = MODEL_DIR / "population.meta.json"
 
 THRESHOLDS = {
-    "grid_violation_max": 0.15,
-    "r2_min": -0.5,  # loose: pseudo-labels can produce negative R² when constraint dominates
+    "grid_violation_post_max": 0.15,
+    "r2_raw_min": 0.40,
+    "baseline_mae_ratio_max": 1.05,
     "n_samples_min": 1000,
 }
 
@@ -27,21 +30,37 @@ def main() -> int:
         return 1
     meta = json.loads(META_PATH.read_text(encoding="utf-8"))
     metrics = meta.get("metrics", {})
-    failures = []
-    if metrics.get("grid_violation_mean", 1.0) > THRESHOLDS["grid_violation_max"]:
-        failures.append(
-            f"grid_violation_mean {metrics.get('grid_violation_mean')} > {THRESHOLDS['grid_violation_max']}"
-        )
-    if metrics.get("r2_mean", -1.0) < THRESHOLDS["r2_min"]:
-        failures.append(f"r2_mean {metrics.get('r2_mean')} < {THRESHOLDS['r2_min']}")
-    if meta.get("n_samples", 0) < THRESHOLDS["n_samples_min"]:
-        failures.append(f"n_samples {meta.get('n_samples')} < {THRESHOLDS['n_samples_min']}")
+    failures: list[str] = []
+
+    viol = metrics.get("grid_violation_post_mean")
+    if viol is None or viol > THRESHOLDS["grid_violation_post_max"]:
+        failures.append(f"grid_violation_post_mean {viol} > {THRESHOLDS['grid_violation_post_max']}")
+
+    r2 = metrics.get("r2_raw_mean")
+    if r2 is None or r2 < THRESHOLDS["r2_raw_min"]:
+        failures.append(f"r2_raw_mean {r2} < {THRESHOLDS['r2_raw_min']}")
+
+    mae = metrics.get("mae_raw_mean")
+    base = metrics.get("baseline_mae_mean")
+    if mae is not None and base is not None and base > 0:
+        ratio = mae / base
+        if ratio > THRESHOLDS["baseline_mae_ratio_max"]:
+            failures.append(
+                f"mae_raw/baseline_mae={ratio:.3f} > {THRESHOLDS['baseline_mae_ratio_max']}"
+            )
+
+    n = meta.get("n_samples", 0)
+    if n < THRESHOLDS["n_samples_min"]:
+        failures.append(f"n_samples {n} < {THRESHOLDS['n_samples_min']}")
 
     report_dir = Path(__file__).resolve().parent / "reports"
     report_dir.mkdir(exist_ok=True)
     (report_dir / "ai.json").write_text(
-        json.dumps({"failures": failures, "metrics": metrics, "n_samples": meta.get("n_samples")},
-                   ensure_ascii=False, indent=2),
+        json.dumps(
+            {"failures": failures, "metrics": metrics, "n_samples": meta.get("n_samples")},
+            ensure_ascii=False,
+            indent=2,
+        ),
         encoding="utf-8",
     )
 

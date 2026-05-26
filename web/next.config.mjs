@@ -8,16 +8,23 @@ const securityHeaders = [
     value: 'max-age=31536000; includeSubDomains',
   },
   {
-    key: 'Content-Security-Policy-Report-Only',
+    // reason: enforced CSP (P2). 'unsafe-eval' kept because MapLibre style
+    //         expressions and deck.gl shader compilation require it at runtime.
+    //         'unsafe-inline' for styles is needed by Next.js + Tailwind JIT
+    //         until we wire nonces. Future: nonces + drop unsafe-* (ADR-0018).
+    key: 'Content-Security-Policy',
     value: [
       "default-src 'self'",
       "img-src 'self' data: blob: https://*.tile.openstreetmap.org https://demotiles.maplibre.org",
       "script-src 'self' 'unsafe-inline' 'unsafe-eval'",
       "style-src 'self' 'unsafe-inline'",
       "font-src 'self' data:",
-      "connect-src 'self' https://*.supabase.co https://*.supabase.in",
+      "connect-src 'self' https://*.supabase.co https://*.supabase.in https://demotiles.maplibre.org",
       "worker-src 'self' blob:",
       "frame-ancestors 'none'",
+      "base-uri 'self'",
+      "object-src 'none'",
+      "form-action 'self'",
     ].join('; '),
   },
 ];

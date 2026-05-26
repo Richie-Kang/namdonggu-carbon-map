@@ -14,7 +14,16 @@ export default defineConfig({
   projects: [
     { name: 'chromium', use: { ...devices['Desktop Chrome'] } },
   ],
-  webServer: process.env.CI
-    ? undefined
-    : { command: 'pnpm dev', port: 3000, reuseExistingServer: true, timeout: 60_000 },
+  webServer: {
+    command: process.env.CI ? 'pnpm start -- --port 3000' : 'pnpm dev',
+    port: 3000,
+    reuseExistingServer: !process.env.CI,
+    timeout: 90_000,
+    env: {
+      NEXT_PUBLIC_SUPABASE_URL:
+        process.env.NEXT_PUBLIC_SUPABASE_URL ?? 'https://stub.supabase.co',
+      NEXT_PUBLIC_SUPABASE_ANON_KEY: process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY ?? 'stub',
+      SKIP_MODEL_HEALTH: '1',
+    },
+  },
 });

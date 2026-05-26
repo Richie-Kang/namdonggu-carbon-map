@@ -14,7 +14,8 @@ from utils import LOG, connect  # noqa: E402
 CHECKS = {
     "parcels_count_min": 40_000,
     "buildings_count_min": 25_000,
-    "energy_pnu_match_rate_min": 0.50,  # lower than 0.90 plan target until data fully merged
+    # P2 fix: align with documented success metric (PRD §1.6).
+    "energy_pnu_match_rate_min": 0.90,
     "db_size_mb_max": 400.0,
     "building_energy_distribute_ratio_min": 0.95,
 }

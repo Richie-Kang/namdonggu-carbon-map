@@ -23,6 +23,9 @@ create index if not exists grid_100m_geom_gix on grid_100m using gist (geom);
 create index if not exists grid_100m_co2_idx on grid_100m (co2_kg_month);
 create index if not exists grid_500m_pop_geom_gix on grid_500m_pop using gist (geom);
 
--- Cluster buildings physically on centroid for spatially local queries.
--- reason: bbox queries dominate; physical locality avoids random IO.
-cluster buildings using buildings_centroid_gix;
+-- NOTE: physical clustering on buildings_centroid_gix is intentionally
+-- skipped here. `CLUSTER` takes an ACCESS EXCLUSIVE lock for the whole
+-- table and stops both reads and writes during a maintenance window.
+-- Run it offline:
+--   `psql -c "cluster buildings using buildings_centroid_gix;"`
+-- See ADR-0001 / docs/ARCHITECTURE.md §2.14 (Backup/Maintenance).
