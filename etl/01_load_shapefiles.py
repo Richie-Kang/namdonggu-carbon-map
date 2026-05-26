@@ -11,6 +11,7 @@ import sys
 from pathlib import Path
 
 import geopandas as gpd
+import pandas as pd
 from shapely import wkb
 from utils import LOG, Snapshot, connect, data_path, is_valid_pnu
 
@@ -117,17 +118,28 @@ def load_buildings(conn) -> tuple[int, int]:
                 if not geom.is_valid:
                     geom = geom.buffer(0)
                 wkb_bytes = wkb.dumps(geom, srid=4326)
+                def num(col: str | None, cast):
+                    if not col or col not in gdf.columns:
+                        return None
+                    v = row[col]
+                    if not pd.notna(v):
+                        return None
+                    try:
+                        return cast(v)
+                    except (TypeError, ValueError):
+                        return None
+
                 copy.write_row((
                     bid[:40],
-                    str(row[pnu_col])[:19] if pnu_col and is_valid_pnu(str(row[pnu_col])) else None,
-                    str(row[name_col]) if name_col else None,
-                    str(row[use_col]) if use_col else None,
-                    str(row[use_code_col])[:10] if use_code_col else None,
-                    int(row[fa_col]) if fa_col and row[fa_col] is not None else None,
-                    float(row[area_b_col]) if area_b_col and row[area_b_col] is not None else None,
-                    float(row[area_t_col]) if area_t_col and row[area_t_col] is not None else None,
-                    float(row[h_col]) if h_col and row[h_col] is not None else None,
-                    row[appr_col] if appr_col else None,
+                    str(row[pnu_col])[:19] if pnu_col and pd.notna(row[pnu_col]) and is_valid_pnu(str(row[pnu_col])) else None,
+                    str(row[name_col]) if name_col and pd.notna(row[name_col]) else None,
+                    str(row[use_col]) if use_col and pd.notna(row[use_col]) else None,
+                    str(row[use_code_col])[:10] if use_code_col and pd.notna(row[use_code_col]) else None,
+                    num(fa_col, int),
+                    num(area_b_col, float),
+                    num(area_t_col, float),
+                    num(h_col, float),
+                    row[appr_col] if appr_col and pd.notna(row[appr_col]) else None,
                     wkb_bytes,
                 ))
                 inserted += 1

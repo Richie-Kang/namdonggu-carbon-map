@@ -84,8 +84,19 @@ export async function POST(req: NextRequest) {
   const defaults = defaultsFor(land_use_category);
   const electricity_kwh = Math.max(0, popAdj * defaults.elec);
   const gas_m3 = Math.max(0, popAdj * defaults.gas);
-  const co2_pred = totalCo2({ electricity_kwh, gas_m3 });
+  let co2_pred = totalCo2({ electricity_kwh, gas_m3 });
   const co2_cur = Number(building.co2_kg_month ?? 0);
+
+  // P1 fix (US-6 AC): clamp predictions to [0, 10×current] to prevent runaway
+  // outputs when the simulator is pushed to extreme values.
+  if (co2_cur > 0) {
+    const upper = co2_cur * 10;
+    if (co2_pred > upper) {
+      warnings.push('clamped_above_10x_current');
+      co2_pred = upper;
+    }
+  }
+  if (co2_pred < 0) co2_pred = 0;
   const delta_kg = co2_pred - co2_cur;
 
   const res: PredictResponse = {

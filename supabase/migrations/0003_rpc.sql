@@ -47,6 +47,7 @@ begin
     limit 12
   ) t;
 
+  -- P2 fix: aggregate over a limited subquery (limit-after-agg was no-op)
   select jsonb_agg(jsonb_build_object(
     'shop_id', shop_id,
     'name', name,
@@ -54,9 +55,12 @@ begin
     'industry_name', industry_name
   ))
   into v_business
-  from businesses
-  where building_id = p_building_id
-  limit 20;
+  from (
+    select shop_id, name, industry_code, industry_name
+    from businesses
+    where building_id = p_building_id
+    limit 20
+  ) t;
 
   select jsonb_agg(jsonb_build_object(
     'factory_id', factory_id,
@@ -66,9 +70,12 @@ begin
     'employees', employees
   ))
   into v_factory
-  from factories
-  where building_id = p_building_id
-  limit 20;
+  from (
+    select factory_id, name, industry_code, industry_name, employees
+    from factories
+    where building_id = p_building_id
+    limit 20
+  ) t;
 
   return jsonb_build_object(
     'building', v_building,
@@ -80,12 +87,18 @@ end;
 $$;
 
 create or replace function get_buildings_bbox(
-  p_west numeric, p_south numeric, p_east numeric, p_north numeric
-) returns setof jsonb
+  p_west numeric, p_south numeric, p_east numeric, p_north numeric,
+  p_limit integer default 5000,
+  p_offset integer default 0
+) returns jsonb
 language plpgsql
 security invoker
 stable
 as $$
+declare
+  v_total bigint;
+  v_features jsonb;
+  v_capped int := least(coalesce(p_limit, 5000), 10000);
 begin
   set local statement_timeout = '3s';
 
@@ -95,24 +108,47 @@ begin
   if p_west >= p_east or p_south >= p_north then
     raise exception 'invalid bbox order';
   end if;
+  if p_offset < 0 or v_capped < 1 then
+    raise exception 'invalid pagination';
+  end if;
 
-  return query
-  select jsonb_build_object(
-    'type', 'Feature',
-    'id', b.building_id,
-    'geometry', st_asgeojson(b.geom)::jsonb,
-    'properties', jsonb_build_object(
-      'building_id', b.building_id,
-      'pnu', b.pnu,
-      'name', b.name,
-      'use_main', b.use_main,
-      'co2_kg_month', b.co2_kg_month,
-      'co2_quintile', b.co2_quintile
-    )
-  )
+  select count(*) into v_total
   from buildings b
-  where b.geom && st_makeenvelope(p_west, p_south, p_east, p_north, 4326)
-  limit 30000;
+  where b.geom && st_makeenvelope(p_west, p_south, p_east, p_north, 4326);
+
+  select coalesce(jsonb_agg(feat order by feat->>'id'), '[]'::jsonb)
+  into v_features
+  from (
+    select jsonb_build_object(
+      'type', 'Feature',
+      'id', b.building_id,
+      'geometry', st_asgeojson(b.geom)::jsonb,
+      'properties', jsonb_build_object(
+        'building_id', b.building_id,
+        'pnu', b.pnu,
+        'name', b.name,
+        'use_main', b.use_main,
+        'co2_kg_month', b.co2_kg_month,
+        'co2_quintile', b.co2_quintile
+      )
+    ) as feat
+    from buildings b
+    where b.geom && st_makeenvelope(p_west, p_south, p_east, p_north, 4326)
+    order by b.building_id
+    limit v_capped
+    offset coalesce(p_offset, 0)
+  ) t;
+
+  return jsonb_build_object(
+    'type', 'FeatureCollection',
+    'features', v_features,
+    'meta', jsonb_build_object(
+      'total', v_total,
+      'limit', v_capped,
+      'offset', coalesce(p_offset, 0),
+      'truncated', v_total > (coalesce(p_offset, 0) + v_capped)
+    )
+  );
 end;
 $$;
 

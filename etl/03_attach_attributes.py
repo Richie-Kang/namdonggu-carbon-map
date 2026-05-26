@@ -113,13 +113,20 @@ def load_factories(conn, snap: Snapshot) -> None:
                 (fid, name, ind, ind_name, emp, addr, pnu),
             )
             inserted += 1
-        # link to a building on the same PNU (pick first by area_total desc)
+        # P1 fix: deterministically pick largest-area_total building per pnu.
         cur.execute("""
+            with picked as (
+                select distinct on (b.pnu) b.pnu, b.building_id, b.centroid
+                from buildings b
+                where b.pnu is not null
+                order by b.pnu, b.area_total desc nulls last, b.building_id
+            )
             update factories f
-            set building_id = b.building_id
-            from buildings b
-            where b.pnu = f.pnu
-              and f.building_id is null
+            set building_id = picked.building_id,
+                geom = coalesce(f.geom, picked.centroid)
+            from picked
+            where picked.pnu = f.pnu
+              and f.building_id is null;
         """)
     conn.commit()
     snap.counts["factories_inserted"] = inserted

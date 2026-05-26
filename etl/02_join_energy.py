@@ -34,7 +34,8 @@ def load_address_to_pnu(conn) -> dict[str, str]:
 def detect_columns(df: pd.DataFrame) -> dict[str, str]:
     cols = {c.lower(): c for c in df.columns}
     return {
-        "addr": cols.get("대지위치") or cols.get("address") or "",
+        "pnu": cols.get("pnu") or cols.get("지번코드") or "",
+        "addr": cols.get("대지위치") or cols.get("address") or cols.get("지번주소") or "",
         "yyyymm": cols.get("사용년월") or cols.get("yyyymm") or "",
         "amount": cols.get("사용량") or cols.get("kwh") or cols.get("amount") or "",
     }
@@ -52,10 +53,13 @@ def load_one(conn, path: Path, kind: str, addr_to_pnu: dict[str, str], snap: Sna
 
     inserted = 0
     unmatched: list[tuple[str, str]] = []
+    matched_by_pnu = 0
+    matched_by_addr = 0
 
     with conn.cursor() as cur:
         for _, row in df.iterrows():
-            raw_addr = str(row[cols["addr"]] or "")
+            raw_pnu = str(row[cols["pnu"]] or "") if cols["pnu"] else ""
+            raw_addr = str(row[cols["addr"]] or "") if cols["addr"] else ""
             yyyymm = str(row[cols["yyyymm"]] or "").replace("-", "")[:6]
             if len(yyyymm) != 6 or not yyyymm.isdigit():
                 continue
@@ -69,7 +73,15 @@ def load_one(conn, path: Path, kind: str, addr_to_pnu: dict[str, str], snap: Sna
                 snap.warnings.append(f"capped_outlier yyyymm={yyyymm} amount={amount}")
                 amount = 1e7
 
-            pnu = addr_to_pnu.get(normalize_address(raw_addr))
+            # 1순위: PNU 직접 매칭 (ADR-0015 step 1)
+            pnu: str | None = None
+            if raw_pnu and len(raw_pnu) == 19 and raw_pnu.isdigit():
+                pnu = raw_pnu
+                matched_by_pnu += 1
+            else:
+                pnu = addr_to_pnu.get(normalize_address(raw_addr))
+                if pnu is not None:
+                    matched_by_addr += 1
             if pnu is None:
                 unmatched.append((raw_addr, yyyymm))
                 continue
@@ -100,6 +112,8 @@ def load_one(conn, path: Path, kind: str, addr_to_pnu: dict[str, str], snap: Sna
             w.writerows(unmatched)
         snap.counts[f"unmatched_{kind}_{path.stem}"] = len(unmatched)
 
+    snap.counts[f"matched_pnu_{kind}_{path.stem}"] = matched_by_pnu
+    snap.counts[f"matched_addr_{kind}_{path.stem}"] = matched_by_addr
     return inserted
 
 

@@ -37,52 +37,179 @@ PARAMS = dict(
 
 
 def spatial_folds(df: pd.DataFrame, k: int = 5) -> np.ndarray:
+    """Cluster grid_500m cells by their spatial centroid (P1 fix).
+
+    Pulls per-grid lon/lat from grid_500m_pop via ST_X/ST_Y of centroid.
+    Falls back to building centroid average when no SGIS row exists.
+    """
     grid_ids = df["grid_id"].fillna("__none__").to_numpy()
     uniq = pd.Series(grid_ids).unique()
     if len(uniq) < k:
         return np.zeros(len(df), dtype=int)
-    # Centroid of each grid for clustering — approximate by first-occurrence row index.
+
     centroid_lookup: dict[str, tuple[float, float]] = {}
-    for gid, area in zip(df["grid_id"], df["area_total"]):
-        if gid not in centroid_lookup:
-            centroid_lookup[gid] = (float(area), 0.0)
-    coords = np.array([centroid_lookup.get(g, (0.0, 0.0)) for g in uniq])
-    km = KMeans(n_clusters=k, random_state=42, n_init=10).fit(coords)
+    with connect() as conn, conn.cursor() as cur:
+        cur.execute("select grid_id, st_x(st_centroid(geom)) lon, st_y(st_centroid(geom)) lat from grid_500m_pop")
+        for r in cur.fetchall():
+            centroid_lookup[r["grid_id"]] = (float(r["lon"]), float(r["lat"]))
+
+    # Fallback: average building centroid (lat/lon) per grid_id from df.
+    if "centroid_lon" not in df.columns:
+        df = df.copy()
+    coords = []
+    for gid in uniq:
+        if gid in centroid_lookup:
+            coords.append(centroid_lookup[gid])
+        else:
+            coords.append((0.0, 0.0))
+    arr = np.array(coords, dtype=float)
+    km = KMeans(n_clusters=k, random_state=42, n_init=10).fit(arr)
     fold_of = dict(zip(uniq, km.labels_))
     return np.array([fold_of[g] for g in grid_ids], dtype=int)
 
 
-def constrained_postprocess(df: pd.DataFrame, pred: np.ndarray) -> np.ndarray:
-    """Scale predictions per grid so sum matches grid_500m population."""
-    out = pred.copy()
-    df = df.assign(_pred=pred)
+def constrained_postprocess(df_block: pd.DataFrame, pred: np.ndarray) -> np.ndarray:
+    """Scale predictions per grid so sum matches SGIS grid population.
+
+    P1 fix: reset_index so positional `iloc`/array assignment aligns with pred.
+    """
+    df = df_block.reset_index(drop=True).copy()
+    df["_pred"] = pred
+    out = pred.copy().astype(float)
     for gid, group in df.groupby("grid_id"):
         if not gid:
             continue
         target = float(group["population"].iloc[0] or 0)
         sum_pred = float(group["_pred"].sum())
-        if sum_pred > 0:
-            scale = target / sum_pred
-            out[group.index] = group["_pred"].values * scale
+        if sum_pred <= 0 or target <= 0:
+            continue
+        scale = target / sum_pred
+        positions = group.index.to_numpy()  # positional after reset_index
+        out[positions] = group["_pred"].to_numpy() * scale
     return np.clip(out, 0, None)
 
 
-def evaluate(name: str, y_true: np.ndarray, y_pred: np.ndarray, grid_ids: np.ndarray, grid_pop: np.ndarray) -> dict:
-    mae = mean_absolute_error(y_true, y_pred)
-    rmse = mean_squared_error(y_true, y_pred, squared=False)
-    r2 = r2_score(y_true, y_pred) if y_true.var() > 0 else float("nan")
-    # constraint violation: per-grid sum vs target
-    df = pd.DataFrame({"gid": grid_ids, "pred": y_pred, "pop": grid_pop})
+def evaluate(
+    name: str,
+    y_true: np.ndarray,
+    y_raw: np.ndarray,
+    y_post: np.ndarray,
+    grid_ids: np.ndarray,
+    grid_pop: np.ndarray,
+) -> dict:
+    """Report both raw and post-processed metrics (P1 fix — avoid self-fulfilling)."""
+    mae_raw = mean_absolute_error(y_true, y_raw)
+    rmse_raw = mean_squared_error(y_true, y_raw, squared=False)
+    r2_raw = r2_score(y_true, y_raw) if y_true.var() > 0 else float("nan")
+
+    # Grid violation on RAW predictions (true measure of model fit to constraint).
+    df = pd.DataFrame({"gid": grid_ids, "pred": y_raw, "pop": grid_pop})
     grouped = df.groupby("gid").agg({"pred": "sum", "pop": "first"})
     grouped = grouped[grouped["pop"] > 0]
-    if len(grouped):
-        viol = np.mean(np.abs(grouped["pred"] - grouped["pop"]) / grouped["pop"])
-    else:
-        viol = float("nan")
-    LOG.info(
-        f"eval.{name} mae={mae:.3f} rmse={rmse:.3f} r2={r2:.3f} grid_violation={viol:.3f}"
+    viol_raw = (
+        float(np.mean(np.abs(grouped["pred"] - grouped["pop"]) / grouped["pop"]))
+        if len(grouped) else float("nan")
     )
-    return {"mae": float(mae), "rmse": float(rmse), "r2": float(r2), "grid_violation": float(viol)}
+
+    mae_post = mean_absolute_error(y_true, y_post)
+    LOG.info(
+        f"eval.{name} mae_raw={mae_raw:.3f} mae_post={mae_post:.3f} "
+        f"rmse_raw={rmse_raw:.3f} r2_raw={r2_raw:.3f} viol_raw={viol_raw:.3f}"
+    )
+    return {
+        "mae_raw": float(mae_raw),
+        "mae_post": float(mae_post),
+        "rmse_raw": float(rmse_raw),
+        "r2_raw": float(r2_raw),
+        "grid_violation_raw": float(viol_raw),
+    }
+
+
+def baseline_area_share(df_block: pd.DataFrame) -> np.ndarray:
+    """Naive baseline: distribute grid population by area_total share.
+
+    Used in eval to ensure the trained model is not worse than this baseline.
+    """
+    df = df_block.reset_index(drop=True)
+    out = np.zeros(len(df), dtype=float)
+    for _, group in df.groupby("grid_id"):
+        total = float(group["area_total"].sum())
+        if total <= 0:
+            continue
+        pop = float(group["population"].iloc[0] or 0)
+        positions = group.index.to_numpy()
+        out[positions] = group["area_total"].to_numpy() * (pop / total)
+    return out
+
+
+def train_folds(df: pd.DataFrame, X: np.ndarray, y: np.ndarray, folds: np.ndarray) -> list[dict]:
+    fold_metrics: list[dict] = []
+    for k in sorted(set(folds)):
+        train_idx = np.where(folds != k)[0]
+        test_idx = np.where(folds == k)[0]
+        if len(train_idx) == 0 or len(test_idx) == 0:
+            continue
+        model = xgb.XGBRegressor(**PARAMS, early_stopping_rounds=20)
+        model.fit(
+            X[train_idx], y[train_idx],
+            eval_set=[(X[test_idx], y[test_idx])],
+            verbose=False,
+        )
+        raw = model.predict(X[test_idx])
+        test_df = df.iloc[test_idx].reset_index(drop=True)
+        post = constrained_postprocess(test_df, raw)
+        baseline = baseline_area_share(test_df)
+        m = evaluate(
+            f"fold{k}",
+            y[test_idx],
+            raw,
+            post,
+            test_df["grid_id"].fillna("").to_numpy(),
+            test_df["population"].fillna(0).to_numpy(),
+        )
+        m["baseline_mae"] = float(mean_absolute_error(y[test_idx], baseline))
+        fold_metrics.append(m)
+    return fold_metrics
+
+
+def compute_energy_coeffs(df: pd.DataFrame, final: xgb.XGBRegressor, X: np.ndarray) -> dict:
+    """Compute per-use_code energy intensity per predicted resident (P1 fix).
+
+    Divides aggregated kWh/m³ by population predicted by the trained model.
+    """
+    df = df.copy()
+    df["pred_pop"] = np.clip(final.predict(X), 1e-3, None)
+    with connect() as conn, conn.cursor() as cur:
+        cur.execute("""
+            select be.building_id,
+                   sum(be.electricity_kwh) e_sum,
+                   sum(be.gas_m3) g_sum,
+                   count(distinct be.yyyymm) months
+            from building_energy be
+            group by be.building_id
+        """)
+        rows = cur.fetchall()
+    if not rows:
+        return {}
+    energy_df = pd.DataFrame(rows)
+    merged = df.merge(energy_df, on="building_id", how="inner")
+    merged = merged[merged["months"] > 0]
+    merged["elec_per_month"] = merged["e_sum"].astype(float) / merged["months"].astype(float)
+    merged["gas_per_month"] = merged["g_sum"].astype(float) / merged["months"].astype(float)
+    coeffs: dict[str, dict[str, float]] = {}
+    for code, group in merged.groupby("use_main_code"):
+        if not code:
+            continue
+        # Sum per group and divide by sum of predicted population
+        pop_sum = float(group["pred_pop"].sum())
+        if pop_sum <= 0:
+            continue
+        coeffs[str(code)] = {
+            "elec_kwh_per_pop_month": float(group["elec_per_month"].sum() / pop_sum),
+            "gas_m3_per_pop_month": float(group["gas_per_month"].sum() / pop_sum),
+            "n_buildings": int(len(group)),
+        }
+    return coeffs
 
 
 def main() -> int:
@@ -103,59 +230,25 @@ def main() -> int:
     y = make_pseudo_labels(df).to_numpy()
     X = to_matrix(df)
     folds = spatial_folds(df)
-    fold_metrics = []
-
-    for k in sorted(set(folds)):
-        train_idx = np.where(folds != k)[0]
-        test_idx = np.where(folds == k)[0]
-        if len(train_idx) == 0 or len(test_idx) == 0:
-            continue
-        model = xgb.XGBRegressor(**PARAMS, early_stopping_rounds=20)
-        model.fit(
-            X[train_idx], y[train_idx],
-            eval_set=[(X[test_idx], y[test_idx])],
-            verbose=False,
-        )
-        pred = model.predict(X[test_idx])
-        pred_post = constrained_postprocess(df.iloc[test_idx].assign(_idx=range(len(test_idx))), pred)
-        m = evaluate(f"fold{k}", y[test_idx], pred_post,
-                     df["grid_id"].iloc[test_idx].fillna("").to_numpy(),
-                     df["population"].iloc[test_idx].fillna(0).to_numpy())
-        fold_metrics.append(m)
+    fold_metrics = train_folds(df, X, y, folds)
 
     if fold_metrics:
-        snap.metrics["mae_mean"] = float(np.mean([m["mae"] for m in fold_metrics]))
-        snap.metrics["rmse_mean"] = float(np.mean([m["rmse"] for m in fold_metrics]))
-        snap.metrics["r2_mean"] = float(np.nanmean([m["r2"] for m in fold_metrics]))
-        snap.metrics["grid_violation_mean"] = float(np.nanmean([m["grid_violation"] for m in fold_metrics]))
+        snap.metrics["mae_raw_mean"] = float(np.mean([m["mae_raw"] for m in fold_metrics]))
+        snap.metrics["mae_post_mean"] = float(np.mean([m["mae_post"] for m in fold_metrics]))
+        snap.metrics["rmse_raw_mean"] = float(np.mean([m["rmse_raw"] for m in fold_metrics]))
+        snap.metrics["r2_raw_mean"] = float(np.nanmean([m["r2_raw"] for m in fold_metrics]))
+        snap.metrics["grid_violation_raw_mean"] = float(np.nanmean([m["grid_violation_raw"] for m in fold_metrics]))
+        snap.metrics["baseline_mae_mean"] = float(np.mean([m["baseline_mae"] for m in fold_metrics]))
+        # Regression guard: model must not be worse than 5% over baseline MAE.
+        if snap.metrics["mae_raw_mean"] > snap.metrics["baseline_mae_mean"] * 1.05:
+            snap.warnings.append("model_worse_than_baseline")
 
     # Final model on full data
     final = xgb.XGBRegressor(**PARAMS)
     final.fit(X, y, verbose=False)
     final.save_model(str(MODEL_DIR / "population.json"))
 
-    # energy coefficients per use_code (linear regression: kwh per resident)
-    coeffs = {}
-    df["pred_pop"] = final.predict(X)
-    df["pred_pop"] = np.clip(df["pred_pop"], 1e-3, None)
-    energy_rows = []
-    with connect() as conn2, conn2.cursor() as cur2:
-        cur2.execute("""
-            select b.use_main_code,
-                   avg(be.electricity_kwh) e_avg,
-                   avg(be.gas_m3) g_avg
-            from buildings b
-            join building_energy be on be.building_id = b.building_id
-            group by b.use_main_code
-        """)
-        energy_rows = cur2.fetchall()
-    for r in energy_rows:
-        if not r["use_main_code"]:
-            continue
-        coeffs[r["use_main_code"]] = {
-            "elec_kwh_per_pop": float(r["e_avg"] or 0),
-            "gas_m3_per_pop": float(r["g_avg"] or 0),
-        }
+    coeffs = compute_energy_coeffs(df, final, X)
 
     meta = {
         "version": "0.1.0",

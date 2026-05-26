@@ -23,11 +23,18 @@ def main() -> int:
     out = MODEL_DIR / "population.onnx"
     onnxmltools.utils.save_model(onnx_model, str(out))
     print(f"wrote {out}")
-    # also copy to web/public/models for static serving
+    meta_src = MODEL_DIR / "population.meta.json"
+    if not meta_src.exists():
+        print("missing population.meta.json — run ai/train.py", file=sys.stderr)
+        return 2
+    # also copy to web/public/models for static serving (P1 fix: include meta json)
     web_dir = MODEL_DIR.parents[1] / "web" / "public" / "models"
     web_dir.mkdir(parents=True, exist_ok=True)
     (web_dir / "population.onnx").write_bytes(out.read_bytes())
-    print(f"copied to {web_dir / 'population.onnx'}")
+    (web_dir / "population.meta.json").write_text(
+        meta_src.read_text(encoding="utf-8"), encoding="utf-8"
+    )
+    print(f"copied to {web_dir}")
     return 0
 
 
