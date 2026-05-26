@@ -102,7 +102,7 @@ def evaluate(
 ) -> dict:
     """Report both raw and post-processed metrics (P1 fix — avoid self-fulfilling)."""
     mae_raw = mean_absolute_error(y_true, y_raw)
-    rmse_raw = mean_squared_error(y_true, y_raw, squared=False)
+    rmse_raw = float(np.sqrt(mean_squared_error(y_true, y_raw)))
     r2_raw = r2_score(y_true, y_raw) if y_true.var() > 0 else float("nan")
 
     # Grid violation on RAW predictions (true measure of model fit to constraint).

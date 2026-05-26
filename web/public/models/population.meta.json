@@ -1,0 +1,193 @@
+{
+  "version": "0.1.0",
+  "feature_cols": [
+    "area_total",
+    "floors_above",
+    "floors_below",
+    "height_m",
+    "approved_year",
+    "use_main_code_int",
+    "land_use_residential",
+    "land_use_commercial",
+    "land_use_industrial",
+    "business_density_50m",
+    "factory_within_100m"
+  ],
+  "params": {
+    "objective": "reg:squarederror",
+    "eval_metric": "rmse",
+    "max_depth": 6,
+    "learning_rate": 0.05,
+    "n_estimators": 500,
+    "subsample": 0.9,
+    "colsample_bytree": 0.9,
+    "random_state": 42
+  },
+  "metrics": {
+    "mae_raw_mean": 7.834900233355462,
+    "mae_post_mean": 4.485755000681215,
+    "rmse_raw_mean": 23.272280105343757,
+    "r2_raw_mean": 0.7319619476987844,
+    "grid_violation_raw_mean": 0.8313683084229622,
+    "grid_violation_post_mean": 0.005951845416694887,
+    "baseline_mae_mean": 2.834454142175165
+  },
+  "energy_coeffs": {
+    "01000": {
+      "elec_kwh_per_pop_month": 1616.662261624152,
+      "gas_m3_per_pop_month": 4679.6543695948185,
+      "n_buildings": 113
+    },
+    "02000": {
+      "elec_kwh_per_pop_month": 319.4356812622083,
+      "gas_m3_per_pop_month": 802.9743332868104,
+      "n_buildings": 1429
+    },
+    "03000": {
+      "elec_kwh_per_pop_month": 5222.6285518432005,
+      "gas_m3_per_pop_month": 2531.8626507705644,
+      "n_buildings": 1775
+    },
+    "04000": {
+      "elec_kwh_per_pop_month": 6630.785284805261,
+      "gas_m3_per_pop_month": 4472.374466699888,
+      "n_buildings": 2154
+    },
+    "05000": {
+      "elec_kwh_per_pop_month": 12635.125292543786,
+      "gas_m3_per_pop_month": 8150.254747185681,
+      "n_buildings": 22
+    },
+    "06000": {
+      "elec_kwh_per_pop_month": 2889.0877442750852,
+      "gas_m3_per_pop_month": 2141.3979845953127,
+      "n_buildings": 130
+    },
+    "07000": {
+      "elec_kwh_per_pop_month": 11288.940164896758,
+      "gas_m3_per_pop_month": 5848.506709162875,
+      "n_buildings": 65
+    },
+    "08000": {
+      "elec_kwh_per_pop_month": 85.89267918609211,
+      "gas_m3_per_pop_month": 0.0,
+      "n_buildings": 1
+    },
+    "09000": {
+      "elec_kwh_per_pop_month": 11176.816401444159,
+      "gas_m3_per_pop_month": 10559.32849494679,
+      "n_buildings": 36
+    },
+    "10000": {
+      "elec_kwh_per_pop_month": 542.1690094389346,
+      "gas_m3_per_pop_month": 1814.5989300915996,
+      "n_buildings": 308
+    },
+    "11000": {
+      "elec_kwh_per_pop_month": 2746.8261974996426,
+      "gas_m3_per_pop_month": 3698.778625927476,
+      "n_buildings": 198
+    },
+    "12000": {
+      "elec_kwh_per_pop_month": 103.76122397792827,
+      "gas_m3_per_pop_month": 17702.794883370956,
+      "n_buildings": 3
+    },
+    "13000": {
+      "elec_kwh_per_pop_month": 7569.514840075052,
+      "gas_m3_per_pop_month": 160430.65633440495,
+      "n_buildings": 18
+    },
+    "14000": {
+      "elec_kwh_per_pop_month": 2188.58459347799,
+      "gas_m3_per_pop_month": 2164.9432685338074,
+      "n_buildings": 209
+    },
+    "15000": {
+      "elec_kwh_per_pop_month": 3583.2660513380215,
+      "gas_m3_per_pop_month": 4681.763563485462,
+      "n_buildings": 79
+    },
+    "16000": {
+      "elec_kwh_per_pop_month": 3436.7700001406974,
+      "gas_m3_per_pop_month": 2025.5196199243337,
+      "n_buildings": 21
+    },
+    "17000": {
+      "elec_kwh_per_pop_month": 39530.292215467125,
+      "gas_m3_per_pop_month": 4897.1142781164035,
+      "n_buildings": 44
+    },
+    "18000": {
+      "elec_kwh_per_pop_month": 4701.77785571672,
+      "gas_m3_per_pop_month": 1012.4572532257496,
+      "n_buildings": 70
+    },
+    "19000": {
+      "elec_kwh_per_pop_month": 9230.730061952503,
+      "gas_m3_per_pop_month": 2214.5227469017573,
+      "n_buildings": 71
+    },
+    "20000": {
+      "elec_kwh_per_pop_month": 3609.796422991976,
+      "gas_m3_per_pop_month": 4177.562785023692,
+      "n_buildings": 117
+    },
+    "21000": {
+      "elec_kwh_per_pop_month": 2255.0240486869943,
+      "gas_m3_per_pop_month": 0.0,
+      "n_buildings": 42
+    },
+    "22000": {
+      "elec_kwh_per_pop_month": 39436.39789181402,
+      "gas_m3_per_pop_month": 245733.88041617884,
+      "n_buildings": 17
+    },
+    "24000": {
+      "elec_kwh_per_pop_month": 208035.6116555017,
+      "gas_m3_per_pop_month": 2599.5720572776627,
+      "n_buildings": 5
+    },
+    "25000": {
+      "elec_kwh_per_pop_month": 18520.010586869634,
+      "gas_m3_per_pop_month": 0.0,
+      "n_buildings": 1
+    },
+    "27000": {
+      "elec_kwh_per_pop_month": 2227.469302926969,
+      "gas_m3_per_pop_month": 0.0,
+      "n_buildings": 5
+    },
+    "29000": {
+      "elec_kwh_per_pop_month": 14093.802007947223,
+      "gas_m3_per_pop_month": 9593.948564172526,
+      "n_buildings": 3
+    },
+    "30000": {
+      "elec_kwh_per_pop_month": 77876.3036043059,
+      "gas_m3_per_pop_month": 0.0,
+      "n_buildings": 13
+    },
+    "Z3000": {
+      "elec_kwh_per_pop_month": 12144.87311830681,
+      "gas_m3_per_pop_month": 6702.25660763301,
+      "n_buildings": 15
+    },
+    "Z6000": {
+      "elec_kwh_per_pop_month": 3045863.649562344,
+      "gas_m3_per_pop_month": 2468237.188826955,
+      "n_buildings": 1
+    },
+    "Z8000": {
+      "elec_kwh_per_pop_month": 33.133706004534005,
+      "gas_m3_per_pop_month": 1124.4796902188664,
+      "n_buildings": 8
+    }
+  },
+  "emission_factors": {
+    "electricity_kg_per_kwh": 0.4781,
+    "gas_kg_per_m3": 2.176
+  },
+  "trained_at": "2026-05-26T14:39:16.239265+00:00",
+  "n_samples": 27173
+}
