@@ -42,8 +42,10 @@ const DEFAULT_STYLE: maplibregl.StyleSpecification = {
   ],
 };
 
-const MAP_STYLE: string | maplibregl.StyleSpecification =
-  process.env.NEXT_PUBLIC_MAP_STYLE_URL || DEFAULT_STYLE;
+// reason: the env-or-default pattern was getting dead-code-eliminated in
+// production builds (DEFAULT_STYLE silently stripped, MAP_STYLE collapsed
+// to ''). Bind to the literal so webpack must keep it.
+const MAP_STYLE: string | maplibregl.StyleSpecification = DEFAULT_STYLE;
 
 const QUINTILE_COLOR = [
   'case',
