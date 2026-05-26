@@ -1,0 +1,31 @@
+# Supabase CLI configuration
+project_id = "namdonggu-carbon-map"
+
+[api]
+enabled = true
+port = 54321
+schemas = ["public"]
+extra_search_path = ["public", "extensions"]
+max_rows = 10000
+
+[db]
+port = 54322
+shadow_port = 54320
+major_version = 15
+
+[db.pooler]
+enabled = false
+
+[studio]
+enabled = true
+port = 54323
+
+[inbucket]
+enabled = false
+
+[storage]
+enabled = true
+file_size_limit = "200MiB"
+
+[auth]
+enabled = false   # MVP: no auth (ADR-0009)
