@@ -8,8 +8,10 @@ import { useAppStore } from '@/store';
 const NAMDONG_CENTER: [number, number] = [126.7396, 37.4459];
 const INITIAL_ZOOM = 12;
 const BUILDING_MIN_ZOOM = 14;
-const MAP_STYLE =
-  process.env.NEXT_PUBLIC_MAP_STYLE_URL ?? 'https://demotiles.maplibre.org/style.json';
+// reason: demotiles has no Korean labels. CARTO Voyager (free tier, OSM-based)
+// gives Korean street and POI labels out of the box.
+const DEFAULT_STYLE = 'https://basemaps.cartocdn.com/gl/voyager-gl-style/style.json';
+const MAP_STYLE = process.env.NEXT_PUBLIC_MAP_STYLE_URL || DEFAULT_STYLE;
 const PMTILES_URL = process.env.NEXT_PUBLIC_PMTILES_URL ?? '';
 
 const QUINTILE_COLOR = [
@@ -33,6 +35,36 @@ function addLayers(map: MlMap) {
     type: 'vector',
     url: `pmtiles://${PMTILES_URL}/grid.pmtiles`,
   });
+
+  // Optional overlays. Sources are added defensively — the tiles file may not
+  // exist yet during early dev cycles.
+  map.addSource('boundary-pmtiles', {
+    type: 'vector',
+    url: `pmtiles://${PMTILES_URL}/boundary.pmtiles`,
+  });
+  map.addSource('roads-pmtiles', {
+    type: 'vector',
+    url: `pmtiles://${PMTILES_URL}/roads.pmtiles`,
+  });
+
+  // Boundary outline (남동구 emphasis)
+  map.addLayer({
+    id: 'boundary-line',
+    type: 'line',
+    source: 'boundary-pmtiles',
+    'source-layer': 'boundary',
+    paint: { 'line-color': '#0f172a', 'line-width': 1.8, 'line-opacity': 0.55 },
+  });
+
+  // Roads layer (light grey)
+  map.addLayer({
+    id: 'roads-line',
+    type: 'line',
+    source: 'roads-pmtiles',
+    'source-layer': 'roads',
+    paint: { 'line-color': '#475569', 'line-width': 0.7, 'line-opacity': 0.35 },
+  });
+
   map.addLayer({
     id: 'buildings-fill',
     type: 'fill',
@@ -47,7 +79,7 @@ function addLayers(map: MlMap) {
     source: 'grid-pmtiles',
     'source-layer': 'grid',
     maxzoom: BUILDING_MIN_ZOOM,
-    paint: { 'fill-color': QUINTILE_COLOR, 'fill-opacity': 0.55 },
+    paint: { 'fill-color': QUINTILE_COLOR, 'fill-opacity': 0.45 },
   });
 }
 
@@ -82,13 +114,22 @@ function bindClicks(
   }
 }
 
-export function applyVisibility(map: MlMap, showBuildings: boolean, showGrid: boolean) {
-  if (map.getLayer('buildings-fill')) {
-    map.setLayoutProperty('buildings-fill', 'visibility', showBuildings ? 'visible' : 'none');
-  }
-  if (map.getLayer('grid-fill')) {
-    map.setLayoutProperty('grid-fill', 'visibility', showGrid ? 'visible' : 'none');
-  }
+export function applyVisibility(
+  map: MlMap,
+  showBuildings: boolean,
+  showGrid: boolean,
+  showBoundary: boolean,
+  showRoads: boolean,
+) {
+  const set = (id: string, on: boolean) => {
+    if (map.getLayer(id)) {
+      map.setLayoutProperty(id, 'visibility', on ? 'visible' : 'none');
+    }
+  };
+  set('buildings-fill', showBuildings);
+  set('grid-fill', showGrid);
+  set('boundary-line', showBoundary);
+  set('roads-line', showRoads);
 }
 
 type UseMapInitResult = {
@@ -127,7 +168,7 @@ export function useMapInit(
         addLayers(map);
         bindClicks(map, setSelected, setGridFocus);
         const state = useAppStore.getState();
-        applyVisibility(map, state.showBuildings, state.showGrid);
+        applyVisibility(map, state.showBuildings, state.showGrid, state.showBoundary, state.showRoads);
       }
       setReady(true);
     });
