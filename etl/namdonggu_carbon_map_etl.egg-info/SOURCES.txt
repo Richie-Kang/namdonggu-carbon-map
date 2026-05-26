@@ -1,6 +1,0 @@
-pyproject.toml
-namdonggu_carbon_map_etl.egg-info/PKG-INFO
-namdonggu_carbon_map_etl.egg-info/SOURCES.txt
-namdonggu_carbon_map_etl.egg-info/dependency_links.txt
-namdonggu_carbon_map_etl.egg-info/requires.txt
-namdonggu_carbon_map_etl.egg-info/top_level.txt
