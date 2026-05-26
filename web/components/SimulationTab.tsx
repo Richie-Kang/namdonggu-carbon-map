@@ -15,6 +15,8 @@ type PredictRes = {
   co2_pred: number;
   delta_kg: number;
   breakdown: { electricity_kwh: number; gas_m3: number };
+  population_baseline: number;
+  population_used: number;
   warnings?: string[];
 };
 
@@ -36,6 +38,10 @@ function nf(n: number): string {
   return n.toLocaleString('ko-KR', { maximumFractionDigits: 1 });
 }
 
+function ni(n: number): string {
+  return Math.round(n).toLocaleString('ko-KR');
+}
+
 export function SimulationTab({
   buildingId,
   currentBuilding,
@@ -48,9 +54,17 @@ export function SimulationTab({
   const sim = useAppStore((s) => s.simInputs);
   const setSim = useAppStore((s) => s.setSim);
   const [result, setResult] = useState<PredictRes | null>(null);
+  const [popBaseline, setPopBaseline] = useState<number | null>(null);
+  const [popTarget, setPopTarget] = useState<number | null>(null);
   const [loading, setLoading] = useState(false);
 
-  // current baseline derived from real data
+  // Reset population state whenever a new building is opened.
+  useEffect(() => {
+    setResult(null);
+    setPopBaseline(null);
+    setPopTarget(null);
+  }, [buildingId]);
+
   const current = useMemo(() => {
     const elec = average(energy, 'electricity_kwh');
     const gas = average(energy, 'gas_m3');
@@ -58,45 +72,65 @@ export function SimulationTab({
     return { electricity_kwh: elec, gas_m3: gas, co2_kg_month: co2 };
   }, [energy, currentBuilding]);
 
-  const trigger = useMemo(
+  const callPredict = useMemo(
     () =>
-      debounce(async (payload: { use_main_code: string; land_use_category: string; pop_delta_pct: number }) => {
-        setLoading(true);
-        try {
-          const r = await fetch('/api/predict', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ ...payload, building_id: buildingId }),
-          });
-          if (!r.ok) {
-            setResult(null);
-            return;
+      debounce(
+        async (payload: {
+          use_main_code: string;
+          land_use_category: string;
+          target_population?: number;
+        }) => {
+          setLoading(true);
+          try {
+            const r = await fetch('/api/predict', {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({ ...payload, building_id: buildingId }),
+            });
+            if (!r.ok) {
+              setResult(null);
+              return;
+            }
+            const data = (await r.json()) as PredictRes;
+            setResult(data);
+            // First response carries the model's baseline population — seed
+            // the slider with it so the user sees a concrete starting number.
+            setPopBaseline((prev) => prev ?? data.population_baseline);
+            setPopTarget((prev) => prev ?? Math.round(data.population_baseline));
+          } finally {
+            setLoading(false);
           }
-          setResult((await r.json()) as PredictRes);
-        } finally {
-          setLoading(false);
-        }
-      }, 300),
-    [buildingId]
+        },
+        250,
+      ),
+    [buildingId],
   );
 
+  // Fire whenever use/land changes or target changes.
   useEffect(() => {
     if (!sim.use_main_code) return;
-    trigger(sim);
-  }, [sim, trigger]);
+    callPredict({
+      use_main_code: sim.use_main_code,
+      land_use_category: sim.land_use_category,
+      target_population: popTarget ?? undefined,
+    });
+  }, [sim.use_main_code, sim.land_use_category, popTarget, callPredict]);
 
   const delta = result ? result.co2_pred - current.co2_kg_month : 0;
   const sign = delta > 0 ? '+' : '';
   const color = delta > 0 ? 'text-red-600' : delta < 0 ? 'text-emerald-700' : 'text-slate-700';
 
-  // Show the simulator's interpretation of the building's *current* state so
-  // users see what the dropdowns mean before they touch anything.
   const currentLabel = labelForUseCode((currentBuilding.use_main_code as string) ?? null);
+  const baselineInt = popBaseline ? Math.round(popBaseline) : null;
+  const targetInt = popTarget ?? baselineInt ?? 0;
+  const popDelta = baselineInt != null ? targetInt - baselineInt : 0;
+  const sliderMax = Math.max(50, (baselineInt ?? 10) * 4);
 
   return (
     <div className="space-y-4">
       <section className="rounded-md bg-amber-50 px-3 py-2 text-[11px] text-amber-900 ring-1 ring-amber-200">
-        실제 데이터를 기반으로 변수를 바꿔보세요. 변경 시 AI 추정 인구·에너지·CO₂ 가 어떻게 달라지는지 비교합니다.
+        실제 데이터를 기반으로 변수를 바꿔보세요. AI가 추정한 상주인구를 출발점으로
+        명수를 직접 조정합니다.
       </section>
 
       <section>
@@ -110,6 +144,8 @@ export function SimulationTab({
           <dd className="col-span-2">{nf(current.gas_m3)} m³</dd>
           <dt className="text-slate-500">CO₂/월</dt>
           <dd className="col-span-2 font-semibold">{nf(current.co2_kg_month)} kg</dd>
+          <dt className="text-slate-500">추정 상주인구</dt>
+          <dd className="col-span-2">{baselineInt != null ? `약 ${ni(baselineInt)}명` : '계산 중…'}</dd>
         </dl>
       </section>
 
@@ -148,16 +184,32 @@ export function SimulationTab({
         </label>
 
         <label className="block text-xs">
-          상주인구 변화: <strong>{sim.pop_delta_pct >= 0 ? '+' : ''}{sim.pop_delta_pct}%</strong>
+          상주인구: <strong>{ni(targetInt)}명</strong>
+          {baselineInt != null && (
+            <span className="ml-2 text-slate-500">
+              ({popDelta >= 0 ? '+' : ''}
+              {ni(popDelta)}명 vs 현재 {ni(baselineInt)})
+            </span>
+          )}
           <input
             type="range"
-            min={-100}
-            max={200}
-            step={5}
+            min={0}
+            max={sliderMax}
+            step={1}
             className="mt-1 w-full"
-            value={sim.pop_delta_pct}
-            onChange={(e) => setSim('pop_delta_pct', Number(e.target.value))}
+            disabled={baselineInt == null}
+            value={targetInt}
+            onChange={(e) => setPopTarget(Number(e.target.value))}
           />
+          {baselineInt != null && (
+            <button
+              type="button"
+              onClick={() => setPopTarget(baselineInt)}
+              className="mt-1 text-[10px] text-slate-500 underline"
+            >
+              현재 값으로 재설정
+            </button>
+          )}
         </label>
       </section>
 
@@ -176,7 +228,7 @@ export function SimulationTab({
             <span className="text-[10px] text-slate-500">변화</span>
             <span className={`ml-2 text-lg font-bold ${color}`}>
               {sign}
-              {result ? nf(Math.round(delta)) : '—'} kg/월
+              {result ? ni(delta) : '—'} kg/월
             </span>
           </div>
         </div>

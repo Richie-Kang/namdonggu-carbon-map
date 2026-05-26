@@ -1,7 +1,7 @@
 'use client';
 
-import { useEffect, useRef, useState, type MutableRefObject } from 'react';
-import maplibregl, { type Map as MlMap } from 'maplibre-gl';
+import { useCallback, useEffect, useRef, useState, type MutableRefObject } from 'react';
+import maplibregl, { type Map as MlMap, type Marker as MlMarker } from 'maplibre-gl';
 import { Protocol } from 'pmtiles';
 import { useAppStore } from '@/store';
 
@@ -118,6 +118,7 @@ function bindClicks(
   map: MlMap,
   setSelected: ReturnType<typeof useAppStore.getState>['setSelected'],
   setGridFocus: (gridId: string | null) => void,
+  setPin: (lon: number, lat: number) => void,
 ) {
   map.on('click', 'buildings-fill', (ev) => {
     const f = ev.features?.[0];
@@ -131,6 +132,7 @@ function bindClicks(
       co2_kg_month: typeof p.co2_kg_month === 'number' ? p.co2_kg_month : null,
       co2_quintile: typeof p.co2_quintile === 'number' ? p.co2_quintile : null,
     });
+    setPin(ev.lngLat.lng, ev.lngLat.lat);
     setGridFocus(null);
   });
   map.on('click', 'grid-fill', (ev) => {
@@ -170,6 +172,8 @@ type UseMapInitResult = {
   zoom: number;
   gridFocus: string | null;
   setGridFocus: (g: string | null) => void;
+  setPin: (lon: number, lat: number) => void;
+  clearPin: () => void;
 };
 
 export function useMapInit(
@@ -177,9 +181,29 @@ export function useMapInit(
 ): UseMapInitResult {
   const containerRef = useRef<HTMLDivElement | null>(null);
   const mapRef = useRef<MlMap | null>(null);
+  const markerRef = useRef<MlMarker | null>(null);
   const [ready, setReady] = useState(false);
   const [zoom, setZoom] = useState(INITIAL_ZOOM);
   const [gridFocus, setGridFocus] = useState<string | null>(null);
+
+  const clearPin = useCallback(() => {
+    if (markerRef.current) {
+      markerRef.current.remove();
+      markerRef.current = null;
+    }
+  }, []);
+
+  const setPin = useCallback((lon: number, lat: number) => {
+    const m = mapRef.current;
+    if (!m) return;
+    if (markerRef.current) {
+      markerRef.current.setLngLat([lon, lat]);
+      return;
+    }
+    markerRef.current = new maplibregl.Marker({ color: '#dc2626' })
+      .setLngLat([lon, lat])
+      .addTo(m);
+  }, []);
 
   useEffect(() => {
     if (!containerRef.current || mapRef.current) return;
@@ -197,7 +221,16 @@ export function useMapInit(
     map.on('load', () => {
       if (PMTILES_URL) {
         addLayers(map);
-        bindClicks(map, setSelected, setGridFocus);
+        bindClicks(map, setSelected, setGridFocus, (lon, lat) => {
+          const cur = markerRef.current;
+          if (cur) {
+            cur.setLngLat([lon, lat]);
+          } else {
+            markerRef.current = new maplibregl.Marker({ color: '#dc2626' })
+              .setLngLat([lon, lat])
+              .addTo(map);
+          }
+        });
         const state = useAppStore.getState();
         applyVisibility(map, state.showBuildings, state.showGrid, state.showBoundary, state.showRoads);
       }
@@ -205,11 +238,15 @@ export function useMapInit(
     });
     map.on('zoom', () => setZoom(map.getZoom()));
     return () => {
+      if (markerRef.current) {
+        markerRef.current.remove();
+        markerRef.current = null;
+      }
       map.remove();
       mapRef.current = null;
       maplibregl.removeProtocol('pmtiles');
     };
   }, [setSelected]);
 
-  return { containerRef, mapRef, ready, zoom, gridFocus, setGridFocus };
+  return { containerRef, mapRef, ready, zoom, gridFocus, setGridFocus, setPin, clearPin };
 }

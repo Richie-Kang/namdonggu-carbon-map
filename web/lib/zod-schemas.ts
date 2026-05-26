@@ -19,7 +19,11 @@ export const PredictRequest = z.object({
   building_id: BuildingId,
   use_main_code: UseMainCode,
   land_use_category: LandUseCategory,
-  pop_delta_pct: z.number().min(-100).max(200),
+  // Backwards-compatible: clients may pass either the legacy %-delta OR an
+  // explicit absolute target population. If both are supplied the absolute
+  // value wins.
+  pop_delta_pct: z.number().min(-100).max(500).optional(),
+  target_population: z.number().min(0).max(100000).optional(),
 });
 
 export type PredictRequest = z.infer<typeof PredictRequest>;
@@ -31,6 +35,8 @@ export const PredictResponse = z.object({
     electricity_kwh: z.number(),
     gas_m3: z.number(),
   }),
+  population_baseline: z.number(),
+  population_used: z.number(),
   model_version: z.string(),
   warnings: z.array(z.string()).optional(),
 });

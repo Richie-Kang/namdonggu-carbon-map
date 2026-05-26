@@ -38,7 +38,7 @@ export async function POST(req: NextRequest) {
   if (!parsed.success) {
     return NextResponse.json({ error: 'schema', issues: parsed.error.issues }, { status: 400 });
   }
-  const { building_id, use_main_code, land_use_category, pop_delta_pct } = parsed.data;
+  const { building_id, use_main_code, land_use_category, pop_delta_pct, target_population } = parsed.data;
 
   const building = await fetchBuilding(building_id);
   if (!building) return NextResponse.json({ error: 'not_found' }, { status: 404 });
@@ -80,7 +80,15 @@ export async function POST(req: NextRequest) {
     warnings.push('model_load_failed_using_rule_based');
   }
 
-  const popAdj = popPred * (1 + pop_delta_pct / 100);
+  // Resolve effective population: absolute target wins, else %-delta, else baseline.
+  let popAdj: number;
+  if (typeof target_population === 'number') {
+    popAdj = Math.max(0, target_population);
+  } else if (typeof pop_delta_pct === 'number') {
+    popAdj = popPred * (1 + pop_delta_pct / 100);
+  } else {
+    popAdj = popPred;
+  }
   const defaults = defaultsFor(land_use_category);
   const electricity_kwh = Math.max(0, popAdj * defaults.elec);
   const gas_m3 = Math.max(0, popAdj * defaults.gas);
@@ -103,6 +111,8 @@ export async function POST(req: NextRequest) {
     co2_pred,
     delta_kg,
     breakdown: { electricity_kwh, gas_m3 },
+    population_baseline: popPred,
+    population_used: popAdj,
     model_version: modelVersion,
     warnings: warnings.length ? warnings : undefined,
   };

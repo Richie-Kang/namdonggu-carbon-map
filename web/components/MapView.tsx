@@ -10,11 +10,13 @@ import { GridFocusList } from './GridFocusList';
 
 export default function MapView() {
   const setSelected = useAppStore((s) => s.setSelected);
+  const selected = useAppStore((s) => s.selected);
   const showBuildings = useAppStore((s) => s.showBuildings);
   const showGrid = useAppStore((s) => s.showGrid);
   const showBoundary = useAppStore((s) => s.showBoundary);
   const showRoads = useAppStore((s) => s.showRoads);
-  const { containerRef, mapRef, ready, zoom, gridFocus, setGridFocus } = useMapInit(setSelected);
+  const { containerRef, mapRef, ready, zoom, gridFocus, setGridFocus, setPin, clearPin } =
+    useMapInit(setSelected);
 
   useEffect(() => {
     if (mapRef.current && ready) {
@@ -22,10 +24,16 @@ export default function MapView() {
     }
   }, [showBuildings, showGrid, showBoundary, showRoads, ready, mapRef]);
 
+  // reason: drop the pin when the user clears their selection from the panel.
+  useEffect(() => {
+    if (!selected) clearPin();
+  }, [selected, clearPin]);
+
   function flyTo(lon: number, lat: number) {
     const m = mapRef.current;
     if (!m) return;
     m.flyTo({ center: [lon, lat], zoom: 17, essential: true });
+    setPin(lon, lat);
   }
 
   return (
