@@ -1,0 +1,68 @@
+# Dependencies
+node_modules/
+.pnp/
+.pnp.js
+.venv/
+venv/
+__pycache__/
+*.pyc
+.python-version
+
+# Build
+.next/
+out/
+dist/
+build/
+.turbo/
+
+# Env
+.env
+.env.local
+.env.*.local
+!.env.example
+
+# Data (large, regenerable)
+data/
+*.shp
+*.shx
+*.dbf
+*.prj
+*.cpg
+*.gpkg
+*.qgz
+*.qmd
+*.fix
+*.parquet
+*.pmtiles
+tiles/
+
+# AI models (use LFS or S3)
+ai/models/*.onnx
+ai/models/*.json
+!ai/models/.gitkeep
+
+# Harness reports
+harness/reports/
+etl/reports/
+etl/snapshot.json
+
+# IDE
+.vscode/
+.idea/
+*.swp
+.DS_Store
+
+# Logs
+*.log
+npm-debug.log*
+pnpm-debug.log*
+yarn-debug.log*
+
+# Test artifacts
+coverage/
+playwright-report/
+test-results/
+.nyc_output/
+
+# Vercel
+.vercel
