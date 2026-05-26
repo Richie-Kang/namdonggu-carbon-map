@@ -15,7 +15,7 @@ export default defineConfig({
     { name: 'chromium', use: { ...devices['Desktop Chrome'] } },
   ],
   webServer: {
-    command: process.env.CI ? 'pnpm start -- --port 3000' : 'pnpm dev',
+    command: process.env.CI ? 'pnpm exec next start -p 3000' : 'pnpm dev',
     port: 3000,
     reuseExistingServer: !process.env.CI,
     timeout: 90_000,
