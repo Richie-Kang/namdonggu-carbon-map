@@ -8,11 +8,33 @@ import { useAppStore } from '@/store';
 const NAMDONG_CENTER: [number, number] = [126.7396, 37.4459];
 const INITIAL_ZOOM = 12;
 const BUILDING_MIN_ZOOM = 14;
-// reason: demotiles has no Korean labels. CARTO Voyager (free tier, OSM-based)
-// gives Korean street and POI labels out of the box.
-const DEFAULT_STYLE = 'https://basemaps.cartocdn.com/gl/voyager-gl-style/style.json';
-const MAP_STYLE = process.env.NEXT_PUBLIC_MAP_STYLE_URL || DEFAULT_STYLE;
+const NAMDONG_SIGUNGU_CODE = '2820000000';
 const PMTILES_URL = process.env.NEXT_PUBLIC_PMTILES_URL ?? '';
+
+// OSM standard raster basemap — matches the user-supplied reference
+// screenshot (한글 도로/지번 라벨 burned into the tiles).
+const DEFAULT_STYLE: maplibregl.StyleSpecification = {
+  version: 8,
+  sources: {
+    osm: {
+      type: 'raster',
+      tiles: [
+        'https://a.tile.openstreetmap.org/{z}/{x}/{y}.png',
+        'https://b.tile.openstreetmap.org/{z}/{x}/{y}.png',
+        'https://c.tile.openstreetmap.org/{z}/{x}/{y}.png',
+      ],
+      tileSize: 256,
+      maxzoom: 19,
+      attribution: '© OpenStreetMap contributors',
+    },
+  },
+  layers: [
+    { id: 'osm', type: 'raster', source: 'osm', paint: { 'raster-opacity': 1 } },
+  ],
+};
+
+const MAP_STYLE: string | maplibregl.StyleSpecification =
+  process.env.NEXT_PUBLIC_MAP_STYLE_URL || DEFAULT_STYLE;
 
 const QUINTILE_COLOR = [
   'case',
@@ -47,13 +69,19 @@ function addLayers(map: MlMap) {
     url: `pmtiles://${PMTILES_URL}/roads.pmtiles`,
   });
 
-  // Boundary outline (남동구 emphasis)
+  // Boundary outline — 남동구 시군구 폴리곤만. 전국 + 인접구 + 동을 모두
+  // 그리면 가독성이 떨어진다는 사용자 피드백 반영.
   map.addLayer({
     id: 'boundary-line',
     type: 'line',
     source: 'boundary-pmtiles',
     'source-layer': 'boundary',
-    paint: { 'line-color': '#0f172a', 'line-width': 1.8, 'line-opacity': 0.55 },
+    filter: [
+      'all',
+      ['==', ['get', 'level'], 'sigungu'],
+      ['==', ['get', 'code'], NAMDONG_SIGUNGU_CODE],
+    ],
+    paint: { 'line-color': '#dc2626', 'line-width': 2.4, 'line-opacity': 0.85 },
   });
 
   // Roads layer (light grey)

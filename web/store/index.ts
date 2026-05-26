@@ -43,7 +43,9 @@ export const useAppStore = create<State & Actions>((set) => ({
   showBuildings: true,
   showGrid: true,
   showBoundary: true,
-  showRoads: true,
+  // reason: OSM basemap already shows streets — our overlay road lines were
+  // redundant noise on the user-supplied reference map. Default to off.
+  showRoads: false,
   setSelected: (b) => set({ selected: b, panelTab: 'data' }),
   setPanelTab: (t) => set({ panelTab: t }),
   setSim: (k, v) =>

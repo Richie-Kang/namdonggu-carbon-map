@@ -15,11 +15,11 @@ const securityHeaders = [
     key: 'Content-Security-Policy',
     value: [
       "default-src 'self'",
-      "img-src 'self' data: blob: https://*.tile.openstreetmap.org https://demotiles.maplibre.org",
+      "img-src 'self' data: blob: https://*.tile.openstreetmap.org https://tile.openstreetmap.org https://demotiles.maplibre.org https://basemaps.cartocdn.com",
       "script-src 'self' 'unsafe-inline' 'unsafe-eval'",
       "style-src 'self' 'unsafe-inline'",
       "font-src 'self' data:",
-      "connect-src 'self' https://*.supabase.co https://*.supabase.in https://demotiles.maplibre.org",
+      "connect-src 'self' https://*.supabase.co https://*.supabase.in https://demotiles.maplibre.org https://*.tile.openstreetmap.org https://tile.openstreetmap.org https://basemaps.cartocdn.com",
       "worker-src 'self' blob:",
       "frame-ancestors 'none'",
       "base-uri 'self'",
