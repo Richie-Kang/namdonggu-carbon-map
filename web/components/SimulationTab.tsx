@@ -17,6 +17,8 @@ type PredictRes = {
   breakdown: { electricity_kwh: number; gas_m3: number };
   population_baseline: number;
   population_used: number;
+  industry_multiplier?: number;
+  industry_label?: string;
   warnings?: string[];
 };
 
@@ -46,24 +48,24 @@ export function SimulationTab({
   buildingId,
   currentBuilding,
   energy,
+  industryCode,
 }: {
   buildingId: string;
   currentBuilding: Record<string, unknown>;
   energy: EnergyRow[];
+  industryCode?: string | null;
 }) {
   const sim = useAppStore((s) => s.simInputs);
   const setSim = useAppStore((s) => s.setSim);
   const [result, setResult] = useState<PredictRes | null>(null);
   const [popBaseline, setPopBaseline] = useState<number | null>(null);
   const [popTarget, setPopTarget] = useState<number | null>(null);
-  const [loading, setLoading] = useState(false);
 
-  // Reset population state whenever a new building is opened.
-  useEffect(() => {
-    setResult(null);
-    setPopBaseline(null);
-    setPopTarget(null);
-  }, [buildingId]);
+  // null = 자동(인구 기반 계산), number = 사용자가 직접 지정한 값
+  const [elecOverride, setElecOverride] = useState<number | null>(null);
+  const [gasOverride, setGasOverride] = useState<number | null>(null);
+
+  const [loading, setLoading] = useState(false);
 
   const current = useMemo(() => {
     const elec = average(energy, 'electricity_kwh');
@@ -72,6 +74,15 @@ export function SimulationTab({
     return { electricity_kwh: elec, gas_m3: gas, co2_kg_month: co2 };
   }, [energy, currentBuilding]);
 
+  // Reset all overrides whenever a new building is opened.
+  useEffect(() => {
+    setResult(null);
+    setPopBaseline(null);
+    setPopTarget(null);
+    setElecOverride(null);
+    setGasOverride(null);
+  }, [buildingId]);
+
   const callPredict = useMemo(
     () =>
       debounce(
@@ -79,6 +90,9 @@ export function SimulationTab({
           use_main_code: string;
           land_use_category: string;
           target_population?: number;
+          target_electricity_kwh?: number;
+          target_gas_m3?: number;
+          industry_code?: string;
         }) => {
           setLoading(true);
           try {
@@ -93,8 +107,6 @@ export function SimulationTab({
             }
             const data = (await r.json()) as PredictRes;
             setResult(data);
-            // First response carries the model's baseline population — seed
-            // the slider with it so the user sees a concrete starting number.
             setPopBaseline((prev) => prev ?? data.population_baseline);
             setPopTarget((prev) => prev ?? Math.round(data.population_baseline));
           } finally {
@@ -106,9 +118,6 @@ export function SimulationTab({
     [buildingId],
   );
 
-  // Fire whenever use/land/target changes. We accept the building's own
-  // use_main_code as a fallback so the simulator works even before the
-  // BuildingPanel sync effect runs.
   useEffect(() => {
     const useCode =
       sim.use_main_code ||
@@ -119,11 +128,17 @@ export function SimulationTab({
       use_main_code: useCode,
       land_use_category: landCat,
       target_population: popTarget ?? undefined,
+      target_electricity_kwh: elecOverride ?? undefined,
+      target_gas_m3: gasOverride ?? undefined,
+      industry_code: industryCode ?? undefined,
     });
   }, [
     sim.use_main_code,
     sim.land_use_category,
     popTarget,
+    elecOverride,
+    gasOverride,
+    industryCode,
     callPredict,
     currentBuilding.use_main_code,
   ]);
@@ -138,11 +153,19 @@ export function SimulationTab({
   const popDelta = baselineInt != null ? targetInt - baselineInt : 0;
   const sliderMax = Math.max(50, (baselineInt ?? 10) * 4);
 
+  // 전기 슬라이더 범위: 0 ~ max(500, 평균 × 5)
+  const elecMax = Math.max(500, Math.ceil(current.electricity_kwh * 5));
+  const elecVal = elecOverride ?? current.electricity_kwh;
+
+  // 가스 슬라이더 범위: 0 ~ max(50, 평균 × 5)
+  const gasMax = Math.max(50, Math.ceil(current.gas_m3 * 5));
+  const gasVal = gasOverride ?? current.gas_m3;
+
   return (
     <div className="space-y-4">
       <section className="rounded-md bg-amber-50 px-3 py-2 text-[11px] text-amber-900 ring-1 ring-amber-200">
-        실제 데이터를 기반으로 변수를 바꿔보세요. AI가 추정한 상주인구를 출발점으로
-        명수를 직접 조정합니다.
+        실제 데이터를 기반으로 변수를 바꿔보세요. 상주인구·전기·가스를 직접 조정해
+        예상 탄소배출량 변화를 확인할 수 있습니다.
       </section>
 
       <section>
@@ -161,7 +184,7 @@ export function SimulationTab({
         </dl>
       </section>
 
-      <section className="space-y-2">
+      <section className="space-y-3">
         <h3 className="text-xs font-semibold uppercase tracking-wide text-slate-500">변경할 변수</h3>
 
         <label className="block text-xs">
@@ -195,6 +218,7 @@ export function SimulationTab({
           </select>
         </label>
 
+        {/* 상주인구 슬라이더 */}
         <label className="block text-xs">
           상주인구: <strong>{ni(targetInt)}명</strong>
           {baselineInt != null && (
@@ -223,7 +247,76 @@ export function SimulationTab({
             </button>
           )}
         </label>
+
+        {/* 전기 슬라이더 */}
+        <div className="block text-xs">
+          <div className="flex items-center justify-between">
+            <span>
+              전기 사용량: <strong>{nf(elecVal)} kWh/월</strong>
+              {elecOverride == null && (
+                <span className="ml-1 text-slate-400">(인구 기반 자동)</span>
+              )}
+            </span>
+            {elecOverride != null && (
+              <button
+                type="button"
+                onClick={() => setElecOverride(null)}
+                className="text-[10px] text-slate-500 underline"
+              >
+                자동으로 되돌리기
+              </button>
+            )}
+          </div>
+          <input
+            type="range"
+            min={0}
+            max={elecMax}
+            step={Math.max(1, Math.round(elecMax / 200))}
+            className="mt-1 w-full"
+            value={Math.round(elecVal)}
+            onChange={(e) => setElecOverride(Number(e.target.value))}
+          />
+        </div>
+
+        {/* 가스 슬라이더 */}
+        <div className="block text-xs">
+          <div className="flex items-center justify-between">
+            <span>
+              가스 사용량: <strong>{nf(gasVal)} m³/월</strong>
+              {gasOverride == null && (
+                <span className="ml-1 text-slate-400">(인구 기반 자동)</span>
+              )}
+            </span>
+            {gasOverride != null && (
+              <button
+                type="button"
+                onClick={() => setGasOverride(null)}
+                className="text-[10px] text-slate-500 underline"
+              >
+                자동으로 되돌리기
+              </button>
+            )}
+          </div>
+          <input
+            type="range"
+            min={0}
+            max={gasMax}
+            step={Math.max(1, Math.round(gasMax / 200))}
+            className="mt-1 w-full"
+            value={Math.round(gasVal)}
+            onChange={(e) => setGasOverride(Number(e.target.value))}
+          />
+        </div>
       </section>
+
+      {/* 업종 배출 계수 배지 */}
+      {result?.industry_multiplier != null && (
+        <section className="rounded-md bg-orange-50 px-3 py-2 text-[11px] text-orange-900 ring-1 ring-orange-200">
+          🏭 <strong>{result.industry_label}</strong> 업종 배출 계수{' '}
+          <strong>{result.industry_multiplier}배</strong> 적용됨
+          <span className="ml-1 text-orange-600">(공정 배출 + 에너지 집약도)</span>
+        </section>
+      )}
 
       <section>
         <h3 className="mb-1 text-xs font-semibold uppercase tracking-wide text-slate-500">예상 결과</h3>

@@ -24,6 +24,12 @@ export const PredictRequest = z.object({
   // value wins.
   pop_delta_pct: z.number().min(-100).max(500).optional(),
   target_population: z.number().min(0).max(100000).optional(),
+  // Direct energy overrides — when provided, bypass the population model for
+  // that energy source. Both may be set independently.
+  target_electricity_kwh: z.number().min(0).max(10_000_000).optional(),
+  target_gas_m3: z.number().min(0).max(1_000_000).optional(),
+  // KSIC 업종코드 — when present, apply industry-specific emission multiplier.
+  industry_code: z.string().max(20).optional(),
 });
 
 export type PredictRequest = z.infer<typeof PredictRequest>;
@@ -38,6 +44,8 @@ export const PredictResponse = z.object({
   population_baseline: z.number(),
   population_used: z.number(),
   model_version: z.string(),
+  industry_multiplier: z.number().optional(),
+  industry_label: z.string().optional(),
   warnings: z.array(z.string()).optional(),
 });
 
