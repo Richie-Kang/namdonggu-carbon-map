@@ -12,7 +12,7 @@ export function ActionRecommender({
   const actions = recommendActions(useMainCode, industryCode);
   return (
     <div className="mt-4">
-      <h3 className="text-sm font-semibold mb-1">추천 액션</h3>
+      <h3 className="text-sm font-semibold mb-1">탄소절감 추천 액션</h3>
       <ul className="space-y-2">
         {actions.map((a) => (
           <li key={a.id} className="rounded border border-slate-200 p-2">

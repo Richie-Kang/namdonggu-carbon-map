@@ -2,7 +2,7 @@
 
 import { useEffect } from 'react';
 import { useAppStore } from '@/store';
-import { useMapInit, applyVisibility, applyTheme, MAP_CONST } from './useMapInit';
+import { useMapInit, applyVisibility, applyTheme, applyDongHighlight, MAP_CONST } from './useMapInit';
 import { BuildingPanel } from './BuildingPanel';
 import { Legend } from './Legend';
 import { TopBar } from './TopBar';
@@ -17,6 +17,7 @@ export default function MapView() {
   const showRoads = useAppStore((s) => s.showRoads);
   const themeMode = useAppStore((s) => s.themeMode);
   const industryFilter = useAppStore((s) => s.industryFilter);
+  const selectedDong = useAppStore((s) => s.selectedDong);
   const { containerRef, mapRef, ready, zoom, gridFocus, setGridFocus, setPin, clearPin } =
     useMapInit(setSelected);
 
@@ -28,9 +29,15 @@ export default function MapView() {
 
   useEffect(() => {
     if (mapRef.current && ready) {
-      applyTheme(mapRef.current, themeMode, industryFilter);
+      applyTheme(mapRef.current, themeMode, industryFilter, selectedDong?.code ?? null);
     }
-  }, [themeMode, industryFilter, ready, mapRef]);
+  }, [themeMode, industryFilter, selectedDong, ready, mapRef]);
+
+  useEffect(() => {
+    if (mapRef.current && ready) {
+      applyDongHighlight(mapRef.current, selectedDong);
+    }
+  }, [selectedDong, ready, mapRef]);
 
   // reason: drop the pin when the user clears their selection from the panel.
   useEffect(() => {

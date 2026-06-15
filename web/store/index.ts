@@ -26,6 +26,7 @@ type State = {
   showRoads: boolean;
   themeMode: ThemeMode;
   industryFilter: IndustryFilter;
+  selectedDong: { name: string; code: string } | null;
 };
 
 type Actions = {
@@ -37,6 +38,7 @@ type Actions = {
   toggleLayer: (k: 'showBuildings' | 'showGrid' | 'showBoundary' | 'showRoads') => void;
   setTheme: (t: ThemeMode) => void;
   setIndustryFilter: (f: IndustryFilter) => void;
+  setSelectedDong: (d: { name: string; code: string } | null) => void;
 };
 
 export const useAppStore = create<State & Actions>((set) => ({
@@ -53,6 +55,7 @@ export const useAppStore = create<State & Actions>((set) => ({
   showRoads: false,
   themeMode: 'co2',
   industryFilter: 'all',
+  selectedDong: null,
   setSelected: (b) => set({ selected: b, panelTab: 'data' }),
   setPanelTab: (t) => set({ panelTab: t }),
   setSim: (k, v) =>
@@ -66,4 +69,5 @@ export const useAppStore = create<State & Actions>((set) => ({
   toggleLayer: (k) => set((state) => ({ [k]: !state[k] } as Partial<State>)),
   setTheme: (t) => set({ themeMode: t }),
   setIndustryFilter: (f) => set({ industryFilter: f }),
+  setSelectedDong: (d) => set({ selectedDong: d }),
 }));

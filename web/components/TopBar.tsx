@@ -1,5 +1,6 @@
 'use client';
 
+import useSWR from 'swr';
 import { useAppStore } from '@/store';
 import { SearchBox } from './SearchBox';
 import {
@@ -8,6 +9,13 @@ import {
   type ThemeMode,
   type IndustryFilter,
 } from '@/lib/themes';
+import type { DongItem } from '@/app/api/dongs/route';
+
+async function fetchDongs(url: string): Promise<{ dongs: DongItem[] }> {
+  const r = await fetch(url);
+  if (!r.ok) throw new Error(`http_${r.status}`);
+  return r.json() as Promise<{ dongs: DongItem[] }>;
+}
 
 const THEMES = Object.entries(THEME_META) as [ThemeMode, { label: string }][];
 const FILTERS = Object.entries(INDUSTRY_FILTER_META) as [IndustryFilter, string][];
@@ -22,6 +30,12 @@ export function TopBar({ onFly }: { onFly: (lon: number, lat: number) => void })
   const industryFilter = useAppStore((s) => s.industryFilter);
   const setTheme = useAppStore((s) => s.setTheme);
   const setIndustryFilter = useAppStore((s) => s.setIndustryFilter);
+  const selectedDong = useAppStore((s) => s.selectedDong);
+  const setSelectedDong = useAppStore((s) => s.setSelectedDong);
+
+  const { data: dongData } = useSWR('/api/dongs', fetchDongs, {
+    revalidateOnFocus: false,
+  });
 
   return (
     <div className="absolute left-4 top-4 z-10 flex items-start gap-3">
@@ -45,7 +59,7 @@ export function TopBar({ onFly }: { onFly: (lon: number, lat: number) => void })
 
           {/* 레이어 */}
           <div className="px-3 pb-2 pt-3">
-            <p className="mb-1.5 text-[12px] font-semibold uppercase tracking-widest text-slate-400">
+            <p className="mb-1.5 text-[11px] font-semibold uppercase tracking-widest text-slate-400">
               레이어
             </p>
             <div className="space-y-0.5">
@@ -79,7 +93,7 @@ export function TopBar({ onFly }: { onFly: (lon: number, lat: number) => void })
 
           {/* 주제도 */}
           <div className="px-3 py-2">
-            <p className="mb-1.5 text-[12px] font-semibold uppercase tracking-widest text-slate-400">
+            <p className="mb-1.5 text-[11px] font-semibold uppercase tracking-widest text-slate-400">
               주제도
             </p>
             <div className="space-y-0.5">
@@ -110,7 +124,7 @@ export function TopBar({ onFly }: { onFly: (lon: number, lat: number) => void })
 
           {/* 업종 필터 */}
           <div className="px-3 pb-3 pt-2">
-            <p className="mb-1.5 text-[12px] font-semibold uppercase tracking-widest text-slate-400">
+            <p className="mb-1.5 text-[11px] font-semibold uppercase tracking-widest text-slate-400">
               업종 필터
             </p>
             <div className="space-y-0.5">
@@ -135,6 +149,32 @@ export function TopBar({ onFly }: { onFly: (lon: number, lat: number) => void })
                 </label>
               ))}
             </div>
+          </div>
+
+          <div className="mx-3 h-px bg-slate-100" />
+
+          {/* 행정동 필터 */}
+          <div className="px-3 pb-3 pt-2">
+            <p className="mb-1.5 text-[11px] font-semibold uppercase tracking-widest text-slate-400">
+              행정동
+            </p>
+            <select
+              value={selectedDong?.code ?? ''}
+              onChange={(e) => {
+                const code = e.target.value;
+                if (!code) { setSelectedDong(null); return; }
+                const found = dongData?.dongs.find((d) => d.code === code);
+                if (found) setSelectedDong(found);
+              }}
+              className="w-full rounded-lg border border-slate-200 bg-white px-2 py-1.5 text-[11px] text-slate-700 focus:border-slate-400 focus:outline-none"
+            >
+              <option value="">전체 (남동구)</option>
+              {(dongData?.dongs ?? []).map((d) => (
+                <option key={d.code} value={d.code}>
+                  {d.name}
+                </option>
+              ))}
+            </select>
           </div>
 
         </div>

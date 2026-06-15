@@ -132,6 +132,24 @@ function addLayers(map: MlMap) {
     // reason: 0.35 was too faint over CARTO Voyager's industrial pink tint.
     paint: { 'fill-color': QUINTILE_COLOR, 'fill-opacity': 0.55 },
   });
+
+  // 행정동 선택 하이라이트 레이어 (초기에는 숨김)
+  map.addLayer({
+    id: 'dong-fill',
+    type: 'fill',
+    source: 'boundary-pmtiles',
+    'source-layer': 'boundary',
+    filter: ['==', ['get', 'level'], '__none__'],
+    paint: { 'fill-color': '#2563eb', 'fill-opacity': 0.1 },
+  });
+  map.addLayer({
+    id: 'dong-line',
+    type: 'line',
+    source: 'boundary-pmtiles',
+    'source-layer': 'boundary',
+    filter: ['==', ['get', 'level'], '__none__'],
+    paint: { 'line-color': '#2563eb', 'line-width': 2.2, 'line-opacity': 0.9 },
+  });
 }
 
 function bindClicks(
@@ -177,14 +195,62 @@ export function applyTheme(
   map: MlMap,
   theme: ThemeMode,
   filter: IndustryFilter,
+  dongCode?: string | null,
 ) {
   if (map.getLayer('buildings-fill')) {
     map.setPaintProperty('buildings-fill', 'fill-color', buildingPaintExpr(theme));
-    map.setFilter('buildings-fill', buildingFilterExpr(filter));
+    const industryExpr = buildingFilterExpr(filter);
+    const finalFilter = dongCode
+      ? (['all', industryExpr, ['==', ['slice', ['get', 'pnu'], 0, 10], dongCode.slice(0, 10)]] as unknown as Parameters<MlMap['setFilter']>[1])
+      : industryExpr;
+    map.setFilter('buildings-fill', finalFilter);
   }
   if (map.getLayer('grid-fill')) {
     map.setPaintProperty('grid-fill', 'fill-color', gridPaintExpr(theme));
     map.setFilter('grid-fill', gridFilterExpr(filter));
+  }
+}
+
+// flatCoords: MultiPolygon/Polygon 좌표 배열을 [lng, lat][] 로 평탄화
+function flatCoords(geom: { type: string; coordinates: unknown }): [number, number][] {
+  if (geom.type === 'MultiPolygon') {
+    return (geom.coordinates as number[][][][]).flat(2) as [number, number][];
+  }
+  if (geom.type === 'Polygon') {
+    return (geom.coordinates as number[][][]).flat(1) as [number, number][];
+  }
+  return [];
+}
+
+export function applyDongHighlight(
+  map: MlMap,
+  dong: { name: string; code: string } | null,
+) {
+  const active = dong
+    ? (['all', ['==', ['get', 'level'], 'dong'], ['==', ['get', 'name'], dong.name]] as unknown as Parameters<MlMap['setFilter']>[1])
+    : (['==', ['get', 'level'], '__none__'] as unknown as Parameters<MlMap['setFilter']>[1]);
+
+  if (map.getLayer('dong-fill')) map.setFilter('dong-fill', active);
+  if (map.getLayer('dong-line')) map.setFilter('dong-line', active);
+
+  if (!dong) return;
+
+  // boundary PMTiles는 초기 줌(12)에서 이미 로드됨 → querySourceFeatures 사용 가능
+  const features = map.querySourceFeatures('boundary-pmtiles', {
+    sourceLayer: 'boundary',
+    filter: ['all', ['==', ['get', 'level'], 'dong'], ['==', ['get', 'name'], dong.name]],
+  });
+  if (features.length === 0) return;
+
+  const bounds = new maplibregl.LngLatBounds();
+  for (const f of features) {
+    if (!f.geometry) continue;
+    for (const coord of flatCoords(f.geometry as { type: string; coordinates: unknown })) {
+      bounds.extend(coord);
+    }
+  }
+  if (!bounds.isEmpty()) {
+    map.fitBounds(bounds, { padding: 80, maxZoom: 15 });
   }
 }
 
