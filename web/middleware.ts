@@ -59,7 +59,11 @@ function memIncrement(key: string): { count: number; ttl: number } {
 }
 
 function corsResponse(status: number, body: unknown, origin: string | null): NextResponse {
-  const res = NextResponse.json(body, { status });
+  // reason: 204 No Content must have no body — Response.json() with status 204
+  // violates the Fetch API spec and throws in some runtimes.
+  const res = status === 204
+    ? new NextResponse(null, { status: 204 })
+    : NextResponse.json(body, { status });
   if (origin && ALLOWED_ORIGINS.has(origin)) {
     res.headers.set('Access-Control-Allow-Origin', origin);
     res.headers.set('Vary', 'Origin');

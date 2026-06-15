@@ -7,14 +7,16 @@ test('home loads and shows brand', async ({ page }) => {
 
 test('legend renders quintile swatches', async ({ page }) => {
   await page.goto('/');
-  await expect(page.getByText(/CO₂/)).toBeVisible({ timeout: 15_000 });
+  // getByText(/CO₂/)는 legend item 등 다수 매칭 — label 텍스트로 한정
+  await expect(page.locator('text=CO₂ 배출량').first()).toBeVisible({ timeout: 15_000 });
   await expect(page.getByText('추정치 · 정성적 비교용')).toBeVisible();
 });
 
 test('layer toggles are interactive', async ({ page }) => {
   await page.goto('/');
-  const buildingsToggle = page.getByLabel('건물');
-  const gridToggle = page.getByLabel('100m 격자');
+  // getByLabel('건물')은 legend의 '건물 단위' 텍스트 등 다수 매칭 — role로 한정
+  const buildingsToggle = page.getByRole('checkbox', { name: '건물' });
+  const gridToggle = page.getByRole('checkbox', { name: '100m 격자' });
   await expect(buildingsToggle).toBeChecked();
   await expect(gridToggle).toBeChecked();
   await buildingsToggle.click();
@@ -70,6 +72,7 @@ test('OPTIONS preflight from allowed origin returns 204 with CORS headers', asyn
 });
 
 test('rate limiter eventually returns 429 under burst', async () => {
+  test.setTimeout(60_000); // 65 sequential requests can exceed the 30s default
   const ctx = await pwRequest.newContext({
     baseURL: process.env.BASE_URL ?? 'http://localhost:3000',
   });
