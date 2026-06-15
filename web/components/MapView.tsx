@@ -2,7 +2,7 @@
 
 import { useEffect } from 'react';
 import { useAppStore } from '@/store';
-import { useMapInit, applyVisibility, MAP_CONST } from './useMapInit';
+import { useMapInit, applyVisibility, applyTheme, MAP_CONST } from './useMapInit';
 import { BuildingPanel } from './BuildingPanel';
 import { Legend } from './Legend';
 import { TopBar } from './TopBar';
@@ -15,6 +15,8 @@ export default function MapView() {
   const showGrid = useAppStore((s) => s.showGrid);
   const showBoundary = useAppStore((s) => s.showBoundary);
   const showRoads = useAppStore((s) => s.showRoads);
+  const themeMode = useAppStore((s) => s.themeMode);
+  const industryFilter = useAppStore((s) => s.industryFilter);
   const { containerRef, mapRef, ready, zoom, gridFocus, setGridFocus, setPin, clearPin } =
     useMapInit(setSelected);
 
@@ -23,6 +25,12 @@ export default function MapView() {
       applyVisibility(mapRef.current, showBuildings, showGrid, showBoundary, showRoads);
     }
   }, [showBuildings, showGrid, showBoundary, showRoads, ready, mapRef]);
+
+  useEffect(() => {
+    if (mapRef.current && ready) {
+      applyTheme(mapRef.current, themeMode, industryFilter);
+    }
+  }, [themeMode, industryFilter, ready, mapRef]);
 
   // reason: drop the pin when the user clears their selection from the panel.
   useEffect(() => {
@@ -47,7 +55,7 @@ export default function MapView() {
         </div>
       )}
       <TopBar onFly={flyTo} />
-      <Legend zoom={zoom} buildingMinZoom={MAP_CONST.BUILDING_MIN_ZOOM} />
+      <Legend zoom={zoom} buildingMinZoom={MAP_CONST.BUILDING_MIN_ZOOM} themeMode={themeMode} />
       <BuildingPanel />
       <GridFocusList gridId={gridFocus} onClose={() => setGridFocus(null)} />
       {!MAP_CONST.PMTILES_URL && (

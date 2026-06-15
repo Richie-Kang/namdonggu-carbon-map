@@ -4,6 +4,14 @@ import { useCallback, useEffect, useRef, useState, type MutableRefObject } from 
 import maplibregl, { type Map as MlMap, type Marker as MlMarker } from 'maplibre-gl';
 import { Protocol } from 'pmtiles';
 import { useAppStore } from '@/store';
+import {
+  buildingPaintExpr,
+  gridPaintExpr,
+  buildingFilterExpr,
+  gridFilterExpr,
+  type ThemeMode,
+  type IndustryFilter,
+} from '@/lib/themes';
 
 const NAMDONG_CENTER: [number, number] = [126.7396, 37.4459];
 const INITIAL_ZOOM = 12;
@@ -162,6 +170,21 @@ function bindClicks(
   for (const layer of ['buildings-fill', 'grid-fill'] as const) {
     map.on('mouseenter', layer, () => { map.getCanvas().style.cursor = 'pointer'; });
     map.on('mouseleave', layer, () => { map.getCanvas().style.cursor = ''; });
+  }
+}
+
+export function applyTheme(
+  map: MlMap,
+  theme: ThemeMode,
+  filter: IndustryFilter,
+) {
+  if (map.getLayer('buildings-fill')) {
+    map.setPaintProperty('buildings-fill', 'fill-color', buildingPaintExpr(theme));
+    map.setFilter('buildings-fill', buildingFilterExpr(filter));
+  }
+  if (map.getLayer('grid-fill')) {
+    map.setPaintProperty('grid-fill', 'fill-color', gridPaintExpr(theme));
+    map.setFilter('grid-fill', gridFilterExpr(filter));
   }
 }
 

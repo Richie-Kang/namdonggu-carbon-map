@@ -1,4 +1,5 @@
 import { create } from 'zustand';
+import type { ThemeMode, IndustryFilter } from '@/lib/themes';
 
 export type SelectedBuilding = {
   building_id: string;
@@ -23,6 +24,8 @@ type State = {
   showGrid: boolean;
   showBoundary: boolean;
   showRoads: boolean;
+  themeMode: ThemeMode;
+  industryFilter: IndustryFilter;
 };
 
 type Actions = {
@@ -32,6 +35,8 @@ type Actions = {
   resetSim: (defaults: Partial<SimInputs>, buildingKey: string) => void;
   setColorScheme: (s: State['colorScheme']) => void;
   toggleLayer: (k: 'showBuildings' | 'showGrid' | 'showBoundary' | 'showRoads') => void;
+  setTheme: (t: ThemeMode) => void;
+  setIndustryFilter: (f: IndustryFilter) => void;
 };
 
 export const useAppStore = create<State & Actions>((set) => ({
@@ -46,6 +51,8 @@ export const useAppStore = create<State & Actions>((set) => ({
   // reason: OSM basemap already shows streets — our overlay road lines were
   // redundant noise on the user-supplied reference map. Default to off.
   showRoads: false,
+  themeMode: 'co2',
+  industryFilter: 'all',
   setSelected: (b) => set({ selected: b, panelTab: 'data' }),
   setPanelTab: (t) => set({ panelTab: t }),
   setSim: (k, v) =>
@@ -57,4 +64,6 @@ export const useAppStore = create<State & Actions>((set) => ({
     })),
   setColorScheme: (s) => set({ colorScheme: s }),
   toggleLayer: (k) => set((state) => ({ [k]: !state[k] } as Partial<State>)),
+  setTheme: (t) => set({ themeMode: t }),
+  setIndustryFilter: (f) => set({ industryFilter: f }),
 }));
