@@ -7,14 +7,21 @@ Outputs:
 from __future__ import annotations
 
 import json
+import pickle
 import sys
+from dataclasses import dataclass
 from pathlib import Path
+from typing import Any
 
 import numpy as np
 import pandas as pd
 import xgboost as xgb
+from sklearn.ensemble import RandomForestRegressor
 from sklearn.cluster import KMeans
 from sklearn.metrics import mean_absolute_error, mean_squared_error, r2_score
+from sklearn.neural_network import MLPRegressor
+from sklearn.pipeline import make_pipeline
+from sklearn.preprocessing import StandardScaler
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "etl"))
 from utils import LOG, connect, Snapshot  # noqa: E402
@@ -24,7 +31,7 @@ from features import FEATURE_COLS, build_features, make_pseudo_labels, to_matrix
 MODEL_DIR = Path(__file__).resolve().parent / "models"
 MODEL_DIR.mkdir(exist_ok=True)
 
-PARAMS = dict(
+XGB_PARAMS = dict(
     objective="reg:squarederror",
     eval_metric="rmse",
     max_depth=6,
@@ -35,6 +42,39 @@ PARAMS = dict(
     random_state=42,
 )
 
+RF_PARAMS = dict(
+    n_estimators=32,
+    max_depth=12,
+    min_samples_leaf=3,
+    n_jobs=-1,
+    random_state=42,
+)
+
+MLP_PARAMS = dict(
+    hidden_layer_sizes=(64, 32),
+    activation="relu",
+    solver="adam",
+    alpha=1e-4,
+    learning_rate_init=1e-3,
+    max_iter=500,
+    early_stopping=True,
+    validation_fraction=0.15,
+    n_iter_no_change=20,
+    random_state=42,
+)
+
+MODEL_NAMES = ("xgboost", "random_forest", "neural_network")
+SELECTION_THRESHOLDS = {
+    "grid_violation_post_max": 0.15,
+    "r2_raw_min": 0.40,
+}
+
+
+@dataclass(frozen=True)
+class FoldPlan:
+    folds: np.ndarray
+    strategy: str
+
 
 def spatial_folds(df: pd.DataFrame, k: int = 5) -> np.ndarray:
     """Cluster grid_500m cells by their spatial centroid (P1 fix).
@@ -44,8 +84,9 @@ def spatial_folds(df: pd.DataFrame, k: int = 5) -> np.ndarray:
     """
     grid_ids = df["grid_id"].fillna("__none__").to_numpy()
     uniq = pd.Series(grid_ids).unique()
-    if len(uniq) < k:
+    if len(uniq) < 2:
         return np.zeros(len(df), dtype=int)
+    k_eff = min(k, len(uniq))
 
     centroid_lookup: dict[str, tuple[float, float]] = {}
     with connect() as conn, conn.cursor() as cur:
@@ -66,9 +107,58 @@ def spatial_folds(df: pd.DataFrame, k: int = 5) -> np.ndarray:
         else:
             coords.append((0.0, 0.0))
     arr = np.array(coords, dtype=float)
-    km = KMeans(n_clusters=k, random_state=42, n_init=10).fit(arr)
+    km = KMeans(n_clusters=k_eff, random_state=42, n_init=10).fit(arr)
     fold_of = dict(zip(uniq, km.labels_))
     return np.array([fold_of[g] for g in grid_ids], dtype=int)
+
+
+def validation_folds(df: pd.DataFrame, k: int = 5) -> FoldPlan:
+    """Prefer spatial folds; fall back to deterministic random folds if needed."""
+    folds = spatial_folds(df, k=k)
+    if len(set(folds.tolist())) >= 2:
+        return FoldPlan(folds=folds, strategy="spatial_kfold")
+
+    if len(df) < 2:
+        return FoldPlan(folds=folds, strategy="insufficient_data")
+
+    k_eff = min(k, len(df))
+    rng = np.random.default_rng(42)
+    order = rng.permutation(len(df))
+    random_folds = np.zeros(len(df), dtype=int)
+    random_folds[order] = np.arange(len(df)) % k_eff
+    return FoldPlan(folds=random_folds, strategy="random_kfold_fallback")
+
+
+def build_model(name: str, *, early_stopping: bool = False) -> Any:
+    if name == "xgboost":
+        params = dict(XGB_PARAMS)
+        if early_stopping:
+            params["early_stopping_rounds"] = 20
+        return xgb.XGBRegressor(**params)
+    if name == "random_forest":
+        return RandomForestRegressor(**RF_PARAMS)
+    if name == "neural_network":
+        return make_pipeline(StandardScaler(), MLPRegressor(**MLP_PARAMS))
+    raise ValueError(f"unknown model: {name}")
+
+
+def fit_model(
+    name: str,
+    model: Any,
+    X_train: np.ndarray,
+    y_train: np.ndarray,
+    X_eval: np.ndarray | None = None,
+    y_eval: np.ndarray | None = None,
+) -> Any:
+    if name == "xgboost" and X_eval is not None and y_eval is not None:
+        model.fit(X_train, y_train, eval_set=[(X_eval, y_eval)], verbose=False)
+        return model
+    model.fit(X_train, y_train)
+    return model
+
+
+def predict_model(model: Any, X: np.ndarray) -> np.ndarray:
+    return np.asarray(model.predict(X), dtype=float).reshape(-1)
 
 
 def constrained_postprocess(df_block: pd.DataFrame, pred: np.ndarray) -> np.ndarray:
@@ -157,20 +247,22 @@ def baseline_area_share(df_block: pd.DataFrame) -> np.ndarray:
     return out
 
 
-def train_folds(df: pd.DataFrame, X: np.ndarray, y: np.ndarray, folds: np.ndarray) -> list[dict]:
+def train_folds(
+    model_name: str,
+    df: pd.DataFrame,
+    X: np.ndarray,
+    y: np.ndarray,
+    folds: np.ndarray,
+) -> list[dict]:
     fold_metrics: list[dict] = []
     for k in sorted(set(folds)):
         train_idx = np.where(folds != k)[0]
         test_idx = np.where(folds == k)[0]
         if len(train_idx) == 0 or len(test_idx) == 0:
             continue
-        model = xgb.XGBRegressor(**PARAMS, early_stopping_rounds=20)
-        model.fit(
-            X[train_idx], y[train_idx],
-            eval_set=[(X[test_idx], y[test_idx])],
-            verbose=False,
-        )
-        raw = model.predict(X[test_idx])
+        model = build_model(model_name, early_stopping=True)
+        fit_model(model_name, model, X[train_idx], y[train_idx], X[test_idx], y[test_idx])
+        raw = predict_model(model, X[test_idx])
         test_df = df.iloc[test_idx].reset_index(drop=True)
         post = constrained_postprocess(test_df, raw)
         baseline = baseline_area_share(test_df)
@@ -187,13 +279,71 @@ def train_folds(df: pd.DataFrame, X: np.ndarray, y: np.ndarray, folds: np.ndarra
     return fold_metrics
 
 
-def compute_energy_coeffs(df: pd.DataFrame, final: xgb.XGBRegressor, X: np.ndarray) -> dict:
+def summarize_folds(fold_metrics: list[dict]) -> dict:
+    if not fold_metrics:
+        return {"n_folds": 0}
+    keys = [
+        "mae_raw",
+        "mae_post",
+        "rmse_raw",
+        "r2_raw",
+        "grid_violation_raw",
+        "grid_violation_post",
+        "baseline_mae",
+    ]
+    summary: dict[str, float | int] = {"n_folds": len(fold_metrics)}
+    for key in keys:
+        vals = [m[key] for m in fold_metrics if key in m]
+        if vals:
+            summary[f"{key}_mean"] = float(np.nanmean(vals))
+    return summary
+
+
+def model_params() -> dict:
+    return {
+        "xgboost": XGB_PARAMS,
+        "random_forest": RF_PARAMS,
+        "neural_network": {
+            **MLP_PARAMS,
+            "hidden_layer_sizes": list(MLP_PARAMS["hidden_layer_sizes"]),
+        },
+    }
+
+
+def model_passes_quality_gate(metrics: dict) -> bool:
+    viol = metrics.get("grid_violation_post_mean")
+    r2 = metrics.get("r2_raw_mean")
+    if not isinstance(viol, (int, float)) or not isinstance(r2, (int, float)):
+        return False
+    if np.isnan(viol) or np.isnan(r2):
+        return False
+    return (
+        viol <= SELECTION_THRESHOLDS["grid_violation_post_max"]
+        and r2 >= SELECTION_THRESHOLDS["r2_raw_min"]
+    )
+
+
+def json_safe(value: Any) -> Any:
+    if isinstance(value, dict):
+        return {str(k): json_safe(v) for k, v in value.items()}
+    if isinstance(value, (list, tuple)):
+        return [json_safe(v) for v in value]
+    if isinstance(value, np.integer):
+        return int(value)
+    if isinstance(value, np.floating):
+        value = float(value)
+    if isinstance(value, float):
+        return value if np.isfinite(value) else None
+    return value
+
+
+def compute_energy_coeffs(df: pd.DataFrame, final: Any, X: np.ndarray) -> dict:
     """Compute per-use_code energy intensity per predicted resident (P1 fix).
 
     Divides aggregated kWh/m³ by population predicted by the trained model.
     """
     df = df.copy()
-    df["pred_pop"] = np.clip(final.predict(X), 1e-3, None)
+    df["pred_pop"] = np.clip(predict_model(final, X), 1e-3, None)
     with connect() as conn, conn.cursor() as cur:
         cur.execute("""
             select be.building_id,
@@ -244,36 +394,70 @@ def main() -> int:
     df = df.reset_index(drop=True)
     y = make_pseudo_labels(df).to_numpy()
     X = to_matrix(df)
-    folds = spatial_folds(df)
-    fold_metrics = train_folds(df, X, y, folds)
+    fold_plan = validation_folds(df)
 
-    if fold_metrics:
-        snap.metrics["mae_raw_mean"] = float(np.mean([m["mae_raw"] for m in fold_metrics]))
-        snap.metrics["mae_post_mean"] = float(np.mean([m["mae_post"] for m in fold_metrics]))
-        snap.metrics["rmse_raw_mean"] = float(np.mean([m["rmse_raw"] for m in fold_metrics]))
-        snap.metrics["r2_raw_mean"] = float(np.nanmean([m["r2_raw"] for m in fold_metrics]))
-        snap.metrics["grid_violation_raw_mean"] = float(
-            np.nanmean([m["grid_violation_raw"] for m in fold_metrics])
-        )
-        snap.metrics["grid_violation_post_mean"] = float(
-            np.nanmean([m.get("grid_violation_post", float("nan")) for m in fold_metrics])
-        )
-        snap.metrics["baseline_mae_mean"] = float(np.mean([m["baseline_mae"] for m in fold_metrics]))
-        # Regression guard: model must not be worse than 5% over baseline MAE.
-        if snap.metrics["mae_raw_mean"] > snap.metrics["baseline_mae_mean"] * 1.05:
-            snap.warnings.append("model_worse_than_baseline")
+    model_comparison: dict[str, dict] = {}
+    for model_name in MODEL_NAMES:
+        LOG.info(f"training.compare model={model_name}")
+        fold_metrics = train_folds(model_name, df, X, y, fold_plan.folds)
+        model_comparison[model_name] = {
+            **summarize_folds(fold_metrics),
+            "folds": fold_metrics,
+        }
+
+    valid_models = {
+        name: metrics
+        for name, metrics in model_comparison.items()
+        if "mae_post_mean" in metrics
+    }
+    selection_policy = "defaulted_to_xgboost"
+    if valid_models:
+        eligible_models = {
+            name: metrics
+            for name, metrics in valid_models.items()
+            if model_passes_quality_gate(metrics)
+        }
+        if eligible_models:
+            selected_pool = eligible_models
+            selection_policy = "lowest_mae_post_within_quality_gate"
+        else:
+            selected_pool = valid_models
+            selection_policy = "lowest_mae_post_no_model_met_quality_gate"
+            snap.warnings.append("no_model_met_quality_gate")
+        selected_model = min(selected_pool, key=lambda n: selected_pool[n]["mae_post_mean"])
+        selected_metrics = valid_models[selected_model]
+        for key, value in selected_metrics.items():
+            if key == "folds":
+                continue
+            snap.metrics[key] = value
+        base = snap.metrics.get("baseline_mae_mean")
+        mae = snap.metrics.get("mae_post_mean")
+        if isinstance(base, (int, float)) and isinstance(mae, (int, float)) and base > 0:
+            if mae > base * 1.05:
+                snap.warnings.append("selected_model_worse_than_baseline")
+    else:
+        selected_model = "xgboost"
+        snap.warnings.append("no_validation_folds_defaulted_to_xgboost")
 
     # Final model on full data
-    final = xgb.XGBRegressor(**PARAMS)
-    final.fit(X, y, verbose=False)
-    final.save_model(str(MODEL_DIR / "population.json"))
+    final = build_model(selected_model, early_stopping=False)
+    fit_model(selected_model, final, X, y)
+    if selected_model == "xgboost":
+        final.save_model(str(MODEL_DIR / "population.json"))
+    else:
+        (MODEL_DIR / "population.pkl").write_bytes(pickle.dumps(final))
 
     coeffs = compute_energy_coeffs(df, final, X)
 
     meta = {
         "version": "0.1.0",
+        "selected_model": selected_model,
+        "selection_policy": selection_policy,
+        "validation_strategy": fold_plan.strategy,
         "feature_cols": FEATURE_COLS,
-        "params": PARAMS,
+        "params": model_params()[selected_model],
+        "model_params": model_params(),
+        "model_comparison": model_comparison,
         "metrics": snap.metrics,
         "energy_coeffs": coeffs,
         "emission_factors": {"electricity_kg_per_kwh": 0.4781, "gas_kg_per_m3": 2.176},
@@ -281,7 +465,8 @@ def main() -> int:
         "n_samples": int(len(df)),
     }
     (MODEL_DIR / "population.meta.json").write_text(
-        json.dumps(meta, ensure_ascii=False, indent=2), encoding="utf-8"
+        json.dumps(json_safe(meta), ensure_ascii=False, indent=2, allow_nan=False),
+        encoding="utf-8",
     )
 
     snap.save()

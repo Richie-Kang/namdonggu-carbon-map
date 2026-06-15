@@ -33,8 +33,15 @@ def main() -> int:
         print(f"missing {META_PATH}; run ai/train.py first", file=sys.stderr)
         return 1
     meta = json.loads(META_PATH.read_text(encoding="utf-8"))
+    selected_model = meta.get("selected_model")
+    validation_strategy = meta.get("validation_strategy")
     metrics = meta.get("metrics", {})
     failures: list[str] = []
+
+    if not selected_model:
+        failures.append("selected_model missing")
+    if validation_strategy not in {"spatial_kfold", "random_kfold_fallback"}:
+        failures.append(f"validation_strategy invalid: {validation_strategy}")
 
     viol = metrics.get("grid_violation_post_mean")
     if viol is None or viol > THRESHOLDS["grid_violation_post_max"]:
@@ -64,7 +71,14 @@ def main() -> int:
     report_dir.mkdir(exist_ok=True)
     (report_dir / "ai.json").write_text(
         json.dumps(
-            {"failures": failures, "metrics": metrics, "n_samples": meta.get("n_samples")},
+            {
+                "failures": failures,
+                "selected_model": selected_model,
+                "validation_strategy": validation_strategy,
+                "metrics": metrics,
+                "model_comparison": meta.get("model_comparison"),
+                "n_samples": meta.get("n_samples"),
+            },
             ensure_ascii=False,
             indent=2,
         ),

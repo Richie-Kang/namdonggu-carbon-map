@@ -42,3 +42,20 @@ export const PredictResponse = z.object({
 });
 
 export type PredictResponse = z.infer<typeof PredictResponse>;
+
+export const ReportAction = z.object({
+  title: z.string(),
+  rationale: z.string(),
+  estimated_saving_pct: z.number().nullable(),
+});
+
+export const ReportResponse = z.object({
+  summary: z.string(),
+  emission_drivers: z.array(z.string()).min(1),
+  recommended_actions: z.array(ReportAction).min(1),
+  estimated_impact: z.string(),
+  caveats: z.array(z.string()).min(1),
+});
+
+export type ReportAction = z.infer<typeof ReportAction>;
+export type ReportResponse = z.infer<typeof ReportResponse>;

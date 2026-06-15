@@ -1,5 +1,8 @@
 {
   "version": "0.1.0",
+  "selected_model": "random_forest",
+  "selection_policy": "lowest_mae_post_within_quality_gate",
+  "validation_strategy": "spatial_kfold",
   "feature_cols": [
     "area_total",
     "floors_above",
@@ -14,173 +17,378 @@
     "factory_within_100m"
   ],
   "params": {
-    "objective": "reg:squarederror",
-    "eval_metric": "rmse",
-    "max_depth": 6,
-    "learning_rate": 0.05,
-    "n_estimators": 500,
-    "subsample": 0.9,
-    "colsample_bytree": 0.9,
+    "n_estimators": 32,
+    "max_depth": 12,
+    "min_samples_leaf": 3,
+    "n_jobs": -1,
     "random_state": 42
   },
+  "model_params": {
+    "xgboost": {
+      "objective": "reg:squarederror",
+      "eval_metric": "rmse",
+      "max_depth": 6,
+      "learning_rate": 0.05,
+      "n_estimators": 500,
+      "subsample": 0.9,
+      "colsample_bytree": 0.9,
+      "random_state": 42
+    },
+    "random_forest": {
+      "n_estimators": 32,
+      "max_depth": 12,
+      "min_samples_leaf": 3,
+      "n_jobs": -1,
+      "random_state": 42
+    },
+    "neural_network": {
+      "hidden_layer_sizes": [
+        64,
+        32
+      ],
+      "activation": "relu",
+      "solver": "adam",
+      "alpha": 0.0001,
+      "learning_rate_init": 0.001,
+      "max_iter": 500,
+      "early_stopping": true,
+      "validation_fraction": 0.15,
+      "n_iter_no_change": 20,
+      "random_state": 42
+    }
+  },
+  "model_comparison": {
+    "xgboost": {
+      "n_folds": 5,
+      "mae_raw_mean": 7.830582496555766,
+      "mae_post_mean": 4.4873419575613775,
+      "rmse_raw_mean": 23.255519353083766,
+      "r2_raw_mean": 0.7234702204523549,
+      "grid_violation_raw_mean": 0.8320876521577016,
+      "grid_violation_post_mean": 0.002128155501238991,
+      "baseline_mae_mean": 2.834454142175165,
+      "folds": [
+        {
+          "mae_raw": 10.439624086018483,
+          "mae_post": 3.0686496445612352,
+          "rmse_raw": 37.545769662677635,
+          "r2_raw": 0.7889224068286778,
+          "grid_violation_raw": 0.7178951034831613,
+          "grid_violation_post": 0.0026188083631182566,
+          "baseline_mae": 3.082101219415727
+        },
+        {
+          "mae_raw": 12.713694599462094,
+          "mae_post": 12.713694599462094,
+          "rmse_raw": 15.221756692830605,
+          "r2_raw": null,
+          "grid_violation_raw": null,
+          "grid_violation_post": null,
+          "baseline_mae": 0.0
+        },
+        {
+          "mae_raw": 5.963842680452331,
+          "mae_post": 2.892259262720987,
+          "rmse_raw": 22.563659079686538,
+          "r2_raw": 0.7658421164575542,
+          "grid_violation_raw": 0.9863215867523605,
+          "grid_violation_post": 0.0007676956071876581,
+          "baseline_mae": 5.91176376219102
+        },
+        {
+          "mae_raw": 8.104973439748392,
+          "mae_post": 2.494829414016227,
+          "rmse_raw": 34.43226194130145,
+          "r2_raw": 0.7439712924317344,
+          "grid_violation_raw": 0.7015743751968383,
+          "grid_violation_post": 1.875548732506067e-17,
+          "baseline_mae": 5.178405729269076
+        },
+        {
+          "mae_raw": 1.9307776770975298,
+          "mae_post": 1.2672768670463432,
+          "rmse_raw": 6.514149388922607,
+          "r2_raw": 0.595145066091453,
+          "grid_violation_raw": 0.9225595431984465,
+          "grid_violation_post": 0.005126118034650031,
+          "baseline_mae": 1.981800925661163e-16
+        }
+      ]
+    },
+    "random_forest": {
+      "n_folds": 5,
+      "mae_raw_mean": 6.7070075907741,
+      "mae_post_mean": 3.1910389159545685,
+      "rmse_raw_mean": 26.075782465820318,
+      "r2_raw_mean": 0.6218114209045442,
+      "grid_violation_raw_mean": 0.8848944159763165,
+      "grid_violation_post_mean": 5.526144714838096e-17,
+      "baseline_mae_mean": 2.834454142175165,
+      "folds": [
+        {
+          "mae_raw": 11.1776250390295,
+          "mae_post": 3.132340774373697,
+          "rmse_raw": 39.12310646274252,
+          "r2_raw": 0.7708146921279889,
+          "grid_violation_raw": 0.795068784998077,
+          "grid_violation_post": 4.8437117764307784e-17,
+          "baseline_mae": 3.082101219415727
+        },
+        {
+          "mae_raw": 5.911034637663305,
+          "mae_post": 5.911034637663305,
+          "rmse_raw": 25.031701292317774,
+          "r2_raw": null,
+          "grid_violation_raw": null,
+          "grid_violation_post": null,
+          "baseline_mae": 0.0
+        },
+        {
+          "mae_raw": 6.030502325430962,
+          "mae_post": 2.9224195084725255,
+          "rmse_raw": 22.311892747562922,
+          "r2_raw": 0.771038451923059,
+          "grid_violation_raw": 0.9940380175123391,
+          "grid_violation_post": 6.360637721473181e-17,
+          "baseline_mae": 5.91176376219102
+        },
+        {
+          "mae_raw": 8.32309636153127,
+          "mae_post": 2.742904975866699,
+          "rmse_raw": 34.79442024589558,
+          "r2_raw": 0.7385571519163919,
+          "grid_violation_raw": 0.6614408927532456,
+          "grid_violation_post": 4.917677917913507e-17,
+          "baseline_mae": 5.178405729269076
+        },
+        {
+          "mae_raw": 2.092779590215461,
+          "mae_post": 1.2464946833966157,
+          "rmse_raw": 9.117791580582791,
+          "r2_raw": 0.20683538765073717,
+          "grid_violation_raw": 1.0890299686416038,
+          "grid_violation_post": 5.98255144353492e-17,
+          "baseline_mae": 1.981800925661163e-16
+        }
+      ]
+    },
+    "neural_network": {
+      "n_folds": 5,
+      "mae_raw_mean": 6.630019303907858,
+      "mae_post_mean": 3.2938766317588213,
+      "rmse_raw_mean": 25.808512105350946,
+      "r2_raw_mean": 0.6689598421920199,
+      "grid_violation_raw_mean": 0.7083131044575139,
+      "grid_violation_post_mean": 0.1767379247184229,
+      "baseline_mae_mean": 2.834454142175165,
+      "folds": [
+        {
+          "mae_raw": 11.066044330131184,
+          "mae_post": 3.0404483723112397,
+          "rmse_raw": 38.30998011193022,
+          "r2_raw": 0.7802423696083508,
+          "grid_violation_raw": 0.7489479740935011,
+          "grid_violation_post": 0.12652736976092124,
+          "baseline_mae": 3.082101219415727
+        },
+        {
+          "mae_raw": 5.7108706407069985,
+          "mae_post": 5.587166273004054,
+          "rmse_raw": 24.81890057373663,
+          "r2_raw": null,
+          "grid_violation_raw": null,
+          "grid_violation_post": null,
+          "baseline_mae": 0.0
+        },
+        {
+          "mae_raw": 6.167835304254346,
+          "mae_post": 3.47852905966098,
+          "rmse_raw": 22.057656959761378,
+          "r2_raw": 0.7762265888701461,
+          "grid_violation_raw": 1.011058475372142,
+          "grid_violation_post": 0.09056156035850543,
+          "baseline_mae": 5.91176376219102
+        },
+        {
+          "mae_raw": 8.531301662983747,
+          "mae_post": 3.13888968153879,
+          "rmse_raw": 35.91179979613445,
+          "r2_raw": 0.7214957035508827,
+          "grid_violation_raw": 0.5728530214485059,
+          "grid_violation_post": 0.47346829852249517,
+          "baseline_mae": 5.178405729269076
+        },
+        {
+          "mae_raw": 1.6740445814630118,
+          "mae_post": 1.224349772279041,
+          "rmse_raw": 7.944223085192046,
+          "r2_raw": 0.39787470673869973,
+          "grid_violation_raw": 0.5003929469159066,
+          "grid_violation_post": 0.01639447023176977,
+          "baseline_mae": 1.981800925661163e-16
+        }
+      ]
+    }
+  },
   "metrics": {
-    "mae_raw_mean": 7.834900233355462,
-    "mae_post_mean": 4.485755000681215,
-    "rmse_raw_mean": 23.272280105343757,
-    "r2_raw_mean": 0.7319619476987844,
-    "grid_violation_raw_mean": 0.8313683084229622,
-    "grid_violation_post_mean": 0.005951845416694887,
+    "n_folds": 5,
+    "mae_raw_mean": 6.7070075907741,
+    "mae_post_mean": 3.1910389159545685,
+    "rmse_raw_mean": 26.075782465820318,
+    "r2_raw_mean": 0.6218114209045442,
+    "grid_violation_raw_mean": 0.8848944159763165,
+    "grid_violation_post_mean": 5.526144714838096e-17,
     "baseline_mae_mean": 2.834454142175165
   },
   "energy_coeffs": {
     "01000": {
-      "elec_kwh_per_pop_month": 1616.662261624152,
-      "gas_m3_per_pop_month": 4679.6543695948185,
+      "elec_kwh_per_pop_month": 1390.1054911172257,
+      "gas_m3_per_pop_month": 4023.8542026515333,
       "n_buildings": 113
     },
     "02000": {
-      "elec_kwh_per_pop_month": 319.4356812622083,
-      "gas_m3_per_pop_month": 802.9743332868104,
+      "elec_kwh_per_pop_month": 319.77892262918107,
+      "gas_m3_per_pop_month": 803.8371486326488,
       "n_buildings": 1429
     },
     "03000": {
-      "elec_kwh_per_pop_month": 5222.6285518432005,
-      "gas_m3_per_pop_month": 2531.8626507705644,
+      "elec_kwh_per_pop_month": 4941.078254086148,
+      "gas_m3_per_pop_month": 2395.370714549515,
       "n_buildings": 1775
     },
     "04000": {
-      "elec_kwh_per_pop_month": 6630.785284805261,
-      "gas_m3_per_pop_month": 4472.374466699888,
+      "elec_kwh_per_pop_month": 6173.320282988647,
+      "gas_m3_per_pop_month": 4163.820546514622,
       "n_buildings": 2154
     },
     "05000": {
-      "elec_kwh_per_pop_month": 12635.125292543786,
-      "gas_m3_per_pop_month": 8150.254747185681,
+      "elec_kwh_per_pop_month": 5773.949817125607,
+      "gas_m3_per_pop_month": 3724.47133031679,
       "n_buildings": 22
     },
     "06000": {
-      "elec_kwh_per_pop_month": 2889.0877442750852,
-      "gas_m3_per_pop_month": 2141.3979845953127,
+      "elec_kwh_per_pop_month": 2752.3966413819076,
+      "gas_m3_per_pop_month": 2040.0822482257322,
       "n_buildings": 130
     },
     "07000": {
-      "elec_kwh_per_pop_month": 11288.940164896758,
-      "gas_m3_per_pop_month": 5848.506709162875,
+      "elec_kwh_per_pop_month": 10587.918730894784,
+      "gas_m3_per_pop_month": 5485.325710757343,
       "n_buildings": 65
     },
     "08000": {
-      "elec_kwh_per_pop_month": 85.89267918609211,
+      "elec_kwh_per_pop_month": 70.97790517406477,
       "gas_m3_per_pop_month": 0.0,
       "n_buildings": 1
     },
     "09000": {
-      "elec_kwh_per_pop_month": 11176.816401444159,
-      "gas_m3_per_pop_month": 10559.32849494679,
+      "elec_kwh_per_pop_month": 9943.715455872021,
+      "gas_m3_per_pop_month": 9394.352934460418,
       "n_buildings": 36
     },
     "10000": {
-      "elec_kwh_per_pop_month": 542.1690094389346,
-      "gas_m3_per_pop_month": 1814.5989300915996,
+      "elec_kwh_per_pop_month": 701.6718249896835,
+      "gas_m3_per_pop_month": 2348.442866956431,
       "n_buildings": 308
     },
     "11000": {
-      "elec_kwh_per_pop_month": 2746.8261974996426,
-      "gas_m3_per_pop_month": 3698.778625927476,
+      "elec_kwh_per_pop_month": 3478.6882760984777,
+      "gas_m3_per_pop_month": 4684.278114723792,
       "n_buildings": 198
     },
     "12000": {
-      "elec_kwh_per_pop_month": 103.76122397792827,
-      "gas_m3_per_pop_month": 17702.794883370956,
+      "elec_kwh_per_pop_month": 149.00948827111054,
+      "gas_m3_per_pop_month": 25422.641574666293,
       "n_buildings": 3
     },
     "13000": {
-      "elec_kwh_per_pop_month": 7569.514840075052,
-      "gas_m3_per_pop_month": 160430.65633440495,
+      "elec_kwh_per_pop_month": 6326.559522496134,
+      "gas_m3_per_pop_month": 134087.07400363203,
       "n_buildings": 18
     },
     "14000": {
-      "elec_kwh_per_pop_month": 2188.58459347799,
-      "gas_m3_per_pop_month": 2164.9432685338074,
+      "elec_kwh_per_pop_month": 2200.8970148811445,
+      "gas_m3_per_pop_month": 2177.12268984361,
       "n_buildings": 209
     },
     "15000": {
-      "elec_kwh_per_pop_month": 3583.2660513380215,
-      "gas_m3_per_pop_month": 4681.763563485462,
+      "elec_kwh_per_pop_month": 3419.8879878854377,
+      "gas_m3_per_pop_month": 4468.299797863173,
       "n_buildings": 79
     },
     "16000": {
-      "elec_kwh_per_pop_month": 3436.7700001406974,
-      "gas_m3_per_pop_month": 2025.5196199243337,
+      "elec_kwh_per_pop_month": 2811.045615161901,
+      "gas_m3_per_pop_month": 1656.7381715330382,
       "n_buildings": 21
     },
     "17000": {
-      "elec_kwh_per_pop_month": 39530.292215467125,
-      "gas_m3_per_pop_month": 4897.1142781164035,
+      "elec_kwh_per_pop_month": 27036.602296230896,
+      "gas_m3_per_pop_month": 3349.3638350799247,
       "n_buildings": 44
     },
     "18000": {
-      "elec_kwh_per_pop_month": 4701.77785571672,
-      "gas_m3_per_pop_month": 1012.4572532257496,
+      "elec_kwh_per_pop_month": 2591.89169906832,
+      "gas_m3_per_pop_month": 558.1249541823181,
       "n_buildings": 70
     },
     "19000": {
-      "elec_kwh_per_pop_month": 9230.730061952503,
-      "gas_m3_per_pop_month": 2214.5227469017573,
+      "elec_kwh_per_pop_month": 10126.969008637017,
+      "gas_m3_per_pop_month": 2429.5373254639553,
       "n_buildings": 71
     },
     "20000": {
-      "elec_kwh_per_pop_month": 3609.796422991976,
-      "gas_m3_per_pop_month": 4177.562785023692,
+      "elec_kwh_per_pop_month": 3183.3145196182954,
+      "gas_m3_per_pop_month": 3684.001730812431,
       "n_buildings": 117
     },
     "21000": {
-      "elec_kwh_per_pop_month": 2255.0240486869943,
+      "elec_kwh_per_pop_month": 2116.7207315416667,
       "gas_m3_per_pop_month": 0.0,
       "n_buildings": 42
     },
     "22000": {
-      "elec_kwh_per_pop_month": 39436.39789181402,
-      "gas_m3_per_pop_month": 245733.88041617884,
+      "elec_kwh_per_pop_month": 20922.12724601446,
+      "gas_m3_per_pop_month": 130368.79100439826,
       "n_buildings": 17
     },
     "24000": {
-      "elec_kwh_per_pop_month": 208035.6116555017,
-      "gas_m3_per_pop_month": 2599.5720572776627,
+      "elec_kwh_per_pop_month": 119169.02125547412,
+      "gas_m3_per_pop_month": 1489.1126345322796,
       "n_buildings": 5
     },
     "25000": {
-      "elec_kwh_per_pop_month": 18520.010586869634,
+      "elec_kwh_per_pop_month": 21617.469643900055,
       "gas_m3_per_pop_month": 0.0,
       "n_buildings": 1
     },
     "27000": {
-      "elec_kwh_per_pop_month": 2227.469302926969,
+      "elec_kwh_per_pop_month": 4941.116158481582,
       "gas_m3_per_pop_month": 0.0,
       "n_buildings": 5
     },
     "29000": {
-      "elec_kwh_per_pop_month": 14093.802007947223,
-      "gas_m3_per_pop_month": 9593.948564172526,
+      "elec_kwh_per_pop_month": 6785.584633735545,
+      "gas_m3_per_pop_month": 4619.090712157681,
       "n_buildings": 3
     },
     "30000": {
-      "elec_kwh_per_pop_month": 77876.3036043059,
+      "elec_kwh_per_pop_month": 53001.200652958345,
       "gas_m3_per_pop_month": 0.0,
       "n_buildings": 13
     },
     "Z3000": {
-      "elec_kwh_per_pop_month": 12144.87311830681,
-      "gas_m3_per_pop_month": 6702.25660763301,
+      "elec_kwh_per_pop_month": 2784.1356670025198,
+      "gas_m3_per_pop_month": 1536.4501126476882,
       "n_buildings": 15
     },
     "Z6000": {
-      "elec_kwh_per_pop_month": 3045863.649562344,
-      "gas_m3_per_pop_month": 2468237.188826955,
+      "elec_kwh_per_pop_month": 44834.78119078794,
+      "gas_m3_per_pop_month": 36332.18259915313,
       "n_buildings": 1
     },
     "Z8000": {
-      "elec_kwh_per_pop_month": 33.133706004534005,
-      "gas_m3_per_pop_month": 1124.4796902188664,
+      "elec_kwh_per_pop_month": 44.50120691359756,
+      "gas_m3_per_pop_month": 1510.2658108247927,
       "n_buildings": 8
     }
   },
@@ -188,6 +396,6 @@
     "electricity_kg_per_kwh": 0.4781,
     "gas_kg_per_m3": 2.176
   },
-  "trained_at": "2026-05-26T14:39:16.239265+00:00",
+  "trained_at": "2026-06-15T14:33:42.427063+00:00",
   "n_samples": 27173
 }

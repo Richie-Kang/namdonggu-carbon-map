@@ -69,7 +69,7 @@ export async function POST(req: NextRequest) {
     // Skip ONNX — measured wins. Keep popPred = measuredEmployees.
   } else try {
     const { session, meta } = await getModel();
-    modelVersion = meta.version;
+    modelVersion = meta.selected_model ? `${meta.version}:${meta.selected_model}` : meta.version;
     // Build input vector matching meta.feature_cols length (11)
     const useCodeInt = parseInt(use_main_code || (building.use_main_code ?? '0'), 10) || 0;
     const features = [

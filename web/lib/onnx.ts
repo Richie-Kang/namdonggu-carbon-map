@@ -13,7 +13,11 @@ let cached: Promise<{ session: Session; meta: ModelMeta }> | null = null;
 
 export type ModelMeta = {
   version: string;
+  selected_model?: string;
+  validation_strategy?: string;
   feature_cols: string[];
+  metrics?: Record<string, number>;
+  model_comparison?: Record<string, Record<string, unknown>>;
   energy_coeffs: Record<
     string,
     { elec_kwh_per_pop_month?: number; gas_m3_per_pop_month?: number; n_buildings?: number }

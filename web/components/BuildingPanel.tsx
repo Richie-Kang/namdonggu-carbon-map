@@ -2,11 +2,12 @@
 
 import useSWR from 'swr';
 import dynamic from 'next/dynamic';
-import { useEffect, useMemo } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { useAppStore } from '@/store';
 import { ActionRecommender } from './ActionRecommender';
 import { SimulationTab } from './SimulationTab';
 import { categoryForUseCode, labelForUseCode } from '@/lib/use-codes';
+import type { ReportResponse } from '@/lib/zod-schemas';
 
 const EnergyChart = dynamic(() => import('./EnergyChart').then((m) => m.EnergyChart), {
   ssr: false,
@@ -145,6 +146,7 @@ export function BuildingPanel() {
 
         {tab === 'data' && (
           <DataTab
+            buildingId={selected.building_id}
             building={b}
             useMain={useMain}
             energy={data?.energy ?? []}
@@ -168,6 +170,7 @@ export function BuildingPanel() {
 }
 
 function DataTab({
+  buildingId,
   building,
   useMain,
   energy,
@@ -176,6 +179,7 @@ function DataTab({
   nf,
   shortId,
 }: {
+  buildingId: string;
   building: Record<string, unknown>;
   useMain: string;
   energy: EnergyRow[];
@@ -262,10 +266,108 @@ function DataTab({
         industryCode={businesses[0]?.industry_code ?? factories[0]?.industry_code ?? null}
       />
 
+      <AiReportSection buildingId={buildingId} />
+
       <footer className="border-t border-slate-200 pt-2 text-[10px] text-slate-400">
         ID {shortId(building.building_id as string)} · PNU {shortId(building.pnu as string)} ·
         {' '}데이터는 추정치, 정성적 비교용
       </footer>
     </div>
+  );
+}
+
+function AiReportSection({ buildingId }: { buildingId: string }) {
+  const [status, setStatus] = useState<'idle' | 'loading' | 'success' | 'error'>('idle');
+  const [report, setReport] = useState<ReportResponse | null>(null);
+  const [error, setError] = useState<string | null>(null);
+
+  useEffect(() => {
+    setStatus('idle');
+    setReport(null);
+    setError(null);
+  }, [buildingId]);
+
+  async function loadReport() {
+    setStatus('loading');
+    setError(null);
+    try {
+      const r = await fetch(`/api/report?building_id=${encodeURIComponent(buildingId)}`);
+      const payload = (await r.json().catch(() => null)) as unknown;
+      if (!r.ok) {
+        const reason =
+          payload && typeof payload === 'object' && 'reason' in payload
+            ? String((payload as { reason?: unknown }).reason)
+            : '';
+        if (reason === 'missing_openai_api_key') {
+          throw new Error('서버 API 키 미설정');
+        }
+        throw new Error('보고서 생성 실패');
+      }
+      setReport(payload as ReportResponse);
+      setStatus('success');
+    } catch (err) {
+      setError(err instanceof Error ? err.message : '보고서 생성 실패');
+      setStatus('error');
+    }
+  }
+
+  return (
+    <section className="border-t border-slate-200 pt-3">
+      <div className="mb-2 flex items-center justify-between gap-2">
+        <h3 className="text-sm font-semibold">AI 요약 보고서</h3>
+        <button
+          type="button"
+          onClick={loadReport}
+          disabled={status === 'loading'}
+          className="rounded border border-slate-300 px-2 py-1 text-xs font-medium text-slate-700 hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-60"
+        >
+          {status === 'loading' ? '생성 중' : report ? '다시 생성' : '생성'}
+        </button>
+      </div>
+
+      {status === 'error' && <p className="text-xs text-red-600">{error}</p>}
+
+      {report && (
+        <div className="space-y-3 text-xs text-slate-700">
+          <p className="leading-relaxed text-slate-800">{report.summary}</p>
+
+          <div>
+            <h4 className="mb-1 font-semibold text-slate-600">배출 요인</h4>
+            <ul className="list-disc space-y-1 pl-4">
+              {report.emission_drivers.map((item) => (
+                <li key={item}>{item}</li>
+              ))}
+            </ul>
+          </div>
+
+          <div>
+            <h4 className="mb-1 font-semibold text-slate-600">우선 액션</h4>
+            <ul className="space-y-2">
+              {report.recommended_actions.map((action) => (
+                <li key={`${action.title}-${action.rationale}`} className="border-l-2 border-emerald-400 pl-2">
+                  <div className="flex items-baseline justify-between gap-2">
+                    <strong className="text-slate-800">{action.title}</strong>
+                    {action.estimated_saving_pct != null && (
+                      <span className="shrink-0 text-[10px] text-emerald-700">
+                        ~{action.estimated_saving_pct}%
+                      </span>
+                    )}
+                  </div>
+                  <p className="mt-0.5 text-slate-600">{action.rationale}</p>
+                </li>
+              ))}
+            </ul>
+          </div>
+
+          <p className="font-medium text-slate-700">{report.estimated_impact}</p>
+
+          <ul className="list-disc space-y-1 pl-4 text-[11px] text-slate-500">
+            {report.caveats.map((item) => (
+              <li key={item}>{item}</li>
+            ))}
+          </ul>
+        </div>
+      )}
+    </section>
   );
 }

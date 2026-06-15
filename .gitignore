@@ -43,6 +43,7 @@ tiles/
 # AI models (use LFS or S3)
 ai/models/*.onnx
 ai/models/*.json
+ai/models/*.pkl
 !ai/models/.gitkeep
 
 # Harness reports
