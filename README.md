@@ -21,6 +21,21 @@
 - **Test**: Vitest + Playwright + pytest
 
 ## Quick start
+
+### Frontend-only local run
+GitHub checkout만으로 지도 검수가 가능하도록 웹용 PMTiles는
+`web/public/tiles/*.pmtiles`에 포함되어 있습니다. ETL을 다시 돌리지 않아도
+건물 형상, 100m 격자, 행정경계, 도로 레이어가 로컬에서 떠야 합니다.
+
+```bash
+cd web
+pnpm install
+pnpm dev
+```
+
+Open http://localhost:3000.
+
+### Full local pipeline
 ```bash
 cp .env.example .env.local              # fill in keys (see below)
 pnpm install                             # web deps

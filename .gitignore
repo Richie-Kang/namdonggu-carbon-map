@@ -37,6 +37,8 @@ data/
 *.parquet
 *.pmtiles
 tiles/
+!web/public/tiles/
+!web/public/tiles/*.pmtiles
 
 # AI models (use LFS or S3)
 ai/models/*.onnx
