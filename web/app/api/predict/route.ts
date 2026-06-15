@@ -2,6 +2,7 @@ import { NextResponse, type NextRequest } from 'next/server';
 import { supabasePublic } from '@/lib/supabase';
 import { PredictRequest, type PredictResponse } from '@/lib/zod-schemas';
 import { totalCo2 } from '@/lib/emission-factors';
+import { getIndustryMultiplier } from '@/lib/industry-factors';
 import { getModel } from '@/lib/onnx';
 
 export const runtime = 'nodejs';
@@ -50,7 +51,16 @@ export async function POST(req: NextRequest) {
   if (!parsed.success) {
     return NextResponse.json({ error: 'schema', issues: parsed.error.issues }, { status: 400 });
   }
-  const { building_id, use_main_code, land_use_category, pop_delta_pct, target_population } = parsed.data;
+  const {
+    building_id,
+    use_main_code,
+    land_use_category,
+    pop_delta_pct,
+    target_population,
+    target_electricity_kwh,
+    target_gas_m3,
+    industry_code,
+  } = parsed.data;
 
   const building = await fetchBuilding(building_id);
   if (!building) return NextResponse.json({ error: 'not_found' }, { status: 404 });
@@ -120,6 +130,7 @@ export async function POST(req: NextRequest) {
     coeff = undefined;
   }
 
+  // Population model output
   let electricity_kwh: number;
   let gas_m3: number;
   if (coeff && Number.isFinite(coeff.elec_kwh_per_pop_month) && Number.isFinite(coeff.gas_m3_per_pop_month)) {
@@ -131,7 +142,15 @@ export async function POST(req: NextRequest) {
     gas_m3 = Math.max(0, popAdj * defaults.gas);
   }
 
-  let co2_pred = totalCo2({ electricity_kwh, gas_m3 });
+  // Direct energy overrides bypass the population model for each source.
+  if (typeof target_electricity_kwh === 'number') electricity_kwh = target_electricity_kwh;
+  if (typeof target_gas_m3 === 'number') gas_m3 = target_gas_m3;
+
+  // Industry-specific emission multiplier (공정 배출 + 에너지 집약도 반영).
+  const industryEntry = getIndustryMultiplier(industry_code);
+  const industryMultiplier = industryEntry.multiplier;
+
+  let co2_pred = totalCo2({ electricity_kwh, gas_m3 }) * industryMultiplier;
   const co2_cur = Number(building.co2_kg_month ?? 0);
 
   // P1 fix (US-6 AC): clamp predictions to [0, 10×current] to prevent runaway
@@ -153,6 +172,8 @@ export async function POST(req: NextRequest) {
     population_baseline: popPred,
     population_used: popAdj,
     model_version: modelVersion,
+    industry_multiplier: industryMultiplier !== 1.0 ? industryMultiplier : undefined,
+    industry_label: industryMultiplier !== 1.0 ? industryEntry.label : undefined,
     warnings: warnings.length ? warnings : undefined,
   };
   return NextResponse.json(res, {

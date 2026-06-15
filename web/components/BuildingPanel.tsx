@@ -2,7 +2,7 @@
 
 import useSWR from 'swr';
 import dynamic from 'next/dynamic';
-import { useEffect, useMemo } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { useAppStore } from '@/store';
 import { ActionRecommender } from './ActionRecommender';
 import { SimulationTab } from './SimulationTab';
@@ -160,6 +160,11 @@ export function BuildingPanel() {
             buildingId={selected.building_id}
             currentBuilding={b}
             energy={data?.energy ?? []}
+            industryCode={
+              data?.factories?.[0]?.industry_code ??
+              data?.businesses?.[0]?.industry_code ??
+              null
+            }
           />
         )}
       </div>
@@ -184,9 +189,15 @@ function DataTab({
   nf: (n: number | undefined | null, suffix?: string) => string;
   shortId: (s: string | undefined | null) => string;
 }) {
+  const [showMore, setShowMore] = useState(false);
   const useMainCode = building.use_main_code as string | undefined;
   const industry =
     businesses[0]?.industry_name ?? factories[0]?.industry_name ?? null;
+
+  const approvedAt = building.approved_at as string | undefined | null;
+  const heightM = building.height_m as number | undefined | null;
+  const popPred = building.population_pred as number | undefined | null;
+  const addressJibun = building.address_jibun as string | undefined | null;
 
   return (
     <div className="space-y-4">
@@ -205,7 +216,28 @@ function DataTab({
           <dd className="col-span-2">
             지상 {nf(building.floors_above as number)} · 지하 {nf(building.floors_below as number)}
           </dd>
+
+          {/* 더보기 — 준공일, 높이, 상주인구예측, 지번주소 */}
+          {showMore && (
+            <>
+              <dt className="text-slate-500">준공일</dt>
+              <dd className="col-span-2">{approvedAt ?? '—'}</dd>
+              <dt className="text-slate-500">높이</dt>
+              <dd className="col-span-2">{nf(heightM, ' m')}</dd>
+              <dt className="text-slate-500">상주인구(예측)</dt>
+              <dd className="col-span-2">{popPred != null ? `약 ${Math.round(Number(popPred)).toLocaleString('ko-KR')}명` : '—'}</dd>
+              <dt className="text-slate-500">지번주소</dt>
+              <dd className="col-span-2 break-all text-xs">{addressJibun ?? '—'}</dd>
+            </>
+          )}
         </dl>
+        <button
+          type="button"
+          onClick={() => setShowMore((v) => !v)}
+          className="mt-2 text-[11px] text-slate-500 underline"
+        >
+          {showMore ? '접기' : '…더보기'}
+        </button>
       </section>
 
       <section>
