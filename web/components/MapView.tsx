@@ -55,9 +55,11 @@ export default function MapView() {
         </div>
       )}
       <TopBar onFly={flyTo} />
-      <Legend zoom={zoom} buildingMinZoom={MAP_CONST.BUILDING_MIN_ZOOM} themeMode={themeMode} />
+      <div className="absolute bottom-4 left-4 z-10 flex items-end gap-3">
+        <Legend zoom={zoom} buildingMinZoom={MAP_CONST.BUILDING_MIN_ZOOM} themeMode={themeMode} />
+        <GridFocusList gridId={gridFocus} onClose={() => setGridFocus(null)} />
+      </div>
       <BuildingPanel />
-      <GridFocusList gridId={gridFocus} onClose={() => setGridFocus(null)} />
       {!MAP_CONST.PMTILES_URL && (
         <div className="absolute bottom-4 left-1/2 -translate-x-1/2 rounded-lg bg-amber-50 border border-amber-200 px-4 py-2 text-sm text-amber-900 shadow">
           <code>NEXT_PUBLIC_PMTILES_URL</code> 미설정 — ETL 07 실행 후 .env에 추가

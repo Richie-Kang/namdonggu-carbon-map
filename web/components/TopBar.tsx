@@ -24,66 +24,124 @@ export function TopBar({ onFly }: { onFly: (lon: number, lat: number) => void })
   const setIndustryFilter = useAppStore((s) => s.setIndustryFilter);
 
   return (
-    <div className="absolute left-4 top-4 z-10 flex max-w-[calc(100%-32px)] items-start gap-3">
-      <div className="rounded-lg bg-white px-4 py-2 shadow ring-1 ring-black/10">
-        <h1 className="text-base font-semibold">남동구 탄소지도</h1>
-        <p className="text-[11px] text-slate-500">건물·지번 단위 시뮬레이터 · MVP</p>
+    <div className="absolute left-4 top-4 z-10 flex items-start gap-3">
+      {/* 왼쪽 세로 컬럼: 타이틀 + 컨트롤 패널 */}
+      <div className="flex flex-col gap-2">
+
+        {/* 타이틀 카드 */}
+        <div className="rounded-xl bg-slate-800 px-4 py-3 shadow-lg">
+          <div className="mb-1 flex items-center gap-1.5">
+            <div className="h-1.5 w-1.5 rounded-full bg-emerald-400" />
+            <span className="text-[10px] font-semibold uppercase tracking-widest text-emerald-400">
+              탄소중립
+            </span>
+          </div>
+          <h1 className="text-base font-bold leading-tight text-white">남동구 탄소지도</h1>
+          <p className="mt-0.5 text-[11px] text-slate-400">건물·지번 단위 시뮬레이터</p>
+        </div>
+
+        {/* 컨트롤 패널 */}
+        <div className="overflow-hidden rounded-xl bg-white shadow-lg ring-1 ring-black/10 text-[13px]">
+
+          {/* 레이어 */}
+          <div className="px-3 pb-2 pt-3">
+            <p className="mb-1.5 text-[12px] font-semibold uppercase tracking-widest text-slate-400">
+              레이어
+            </p>
+            <div className="space-y-0.5">
+              {(
+                [
+                  ['showBuildings', '건물', showBuildings],
+                  ['showGrid', '100m 격자', showGrid],
+                  ['showBoundary', '행정경계', showBoundary],
+                  ['showRoads', '도로', showRoads],
+                ] as const
+              ).map(([key, label, checked]) => (
+                <label
+                  key={key}
+                  className={`flex cursor-pointer items-center gap-2 rounded-md px-1.5 py-1 transition-colors hover:bg-slate-50 ${
+                    checked ? 'text-slate-800' : 'text-slate-400'
+                  }`}
+                >
+                  <input
+                    type="checkbox"
+                    checked={checked}
+                    onChange={() => toggleLayer(key)}
+                    className="accent-slate-700"
+                  />
+                  {label}
+                </label>
+              ))}
+            </div>
+          </div>
+
+          <div className="mx-3 h-px bg-slate-100" />
+
+          {/* 주제도 */}
+          <div className="px-3 py-2">
+            <p className="mb-1.5 text-[12px] font-semibold uppercase tracking-widest text-slate-400">
+              주제도
+            </p>
+            <div className="space-y-0.5">
+              {THEMES.map(([key, meta]) => (
+                <label
+                  key={key}
+                  className={`flex cursor-pointer items-center gap-2 rounded-md px-1.5 py-1 transition-colors ${
+                    themeMode === key
+                      ? 'bg-slate-100 font-semibold text-slate-900'
+                      : 'text-slate-600 hover:bg-slate-50'
+                  }`}
+                >
+                  <input
+                    type="radio"
+                    name="themeMode"
+                    value={key}
+                    checked={themeMode === key}
+                    onChange={() => setTheme(key)}
+                    className="accent-slate-700"
+                  />
+                  {meta.label}
+                </label>
+              ))}
+            </div>
+          </div>
+
+          <div className="mx-3 h-px bg-slate-100" />
+
+          {/* 업종 필터 */}
+          <div className="px-3 pb-3 pt-2">
+            <p className="mb-1.5 text-[12px] font-semibold uppercase tracking-widest text-slate-400">
+              업종 필터
+            </p>
+            <div className="space-y-0.5">
+              {FILTERS.map(([key, label]) => (
+                <label
+                  key={key}
+                  className={`flex cursor-pointer items-center gap-2 rounded-md px-1.5 py-1 transition-colors ${
+                    industryFilter === key
+                      ? 'bg-slate-100 font-semibold text-slate-900'
+                      : 'text-slate-600 hover:bg-slate-50'
+                  }`}
+                >
+                  <input
+                    type="radio"
+                    name="industryFilter"
+                    value={key}
+                    checked={industryFilter === key}
+                    onChange={() => setIndustryFilter(key)}
+                    className="accent-slate-700"
+                  />
+                  {label}
+                </label>
+              ))}
+            </div>
+          </div>
+
+        </div>
       </div>
+
+      {/* 검색창 */}
       <SearchBox onFly={onFly} />
-      <div className="rounded-lg bg-white px-3 py-2 text-xs shadow ring-1 ring-black/10 space-y-1">
-        {/* 레이어 토글 */}
-        <p className="font-semibold text-slate-600 text-[11px]">레이어</p>
-        <label className="flex items-center gap-1">
-          <input type="checkbox" checked={showBuildings} onChange={() => toggleLayer('showBuildings')} />
-          건물
-        </label>
-        <label className="flex items-center gap-1">
-          <input type="checkbox" checked={showGrid} onChange={() => toggleLayer('showGrid')} />
-          100m 격자
-        </label>
-        <label className="flex items-center gap-1">
-          <input type="checkbox" checked={showBoundary} onChange={() => toggleLayer('showBoundary')} />
-          행정경계
-        </label>
-        <label className="flex items-center gap-1">
-          <input type="checkbox" checked={showRoads} onChange={() => toggleLayer('showRoads')} />
-          도로
-        </label>
-
-        <hr className="border-slate-200" />
-
-        {/* 주제도 선택 */}
-        <p className="font-semibold text-slate-600 text-[11px]">주제도</p>
-        {THEMES.map(([key, meta]) => (
-          <label key={key} className="flex items-center gap-1 cursor-pointer">
-            <input
-              type="radio"
-              name="themeMode"
-              value={key}
-              checked={themeMode === key}
-              onChange={() => setTheme(key)}
-            />
-            {meta.label}
-          </label>
-        ))}
-
-        <hr className="border-slate-200" />
-
-        {/* 업종 필터 */}
-        <p className="font-semibold text-slate-600 text-[11px]">업종 필터</p>
-        {FILTERS.map(([key, label]) => (
-          <label key={key} className="flex items-center gap-1 cursor-pointer">
-            <input
-              type="radio"
-              name="industryFilter"
-              value={key}
-              checked={industryFilter === key}
-              onChange={() => setIndustryFilter(key)}
-            />
-            {label}
-          </label>
-        ))}
-      </div>
     </div>
   );
 }

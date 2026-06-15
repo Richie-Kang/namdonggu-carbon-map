@@ -60,7 +60,7 @@ export function GridFocusList({ gridId, onClose }: { gridId: string | null; onCl
   const landUse = data?.grid?.land_use_category;
 
   return (
-    <aside className="absolute left-4 bottom-24 z-20 w-[320px] rounded-lg bg-white p-3 shadow-2xl ring-1 ring-black/10 text-sm">
+    <aside className="w-[320px] rounded-xl bg-white p-3 shadow-2xl ring-1 ring-black/10 text-sm">
       <div className="flex items-start justify-between">
         <div className="min-w-0">
           <div className="truncate font-semibold leading-tight" title={headerAddr}>
