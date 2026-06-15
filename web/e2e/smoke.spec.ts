@@ -72,16 +72,18 @@ test('OPTIONS preflight from allowed origin returns 204 with CORS headers', asyn
 });
 
 test('rate limiter eventually returns 429 under burst', async () => {
-  test.setTimeout(60_000); // 65 sequential requests can exceed the 30s default
+  test.setTimeout(30_000);
   const ctx = await pwRequest.newContext({
     baseURL: process.env.BASE_URL ?? 'http://localhost:3000',
   });
-  let saw429 = false;
-  // 65 requests sequentially on the same IP exceed LIMIT=60/min in-memory limiter.
-  for (let i = 0; i < 65; i++) {
-    const r = await ctx.get('/api/health');
-    if (r.status() === 429) { saw429 = true; break; }
-  }
+  // reason: 병렬 요청으로 rate limiter를 빠르게 소진. 순차 요청은 /api/health의
+  // DB 체크가 느린 CI 환경에서 60s를 초과해 타임아웃이 발생함.
+  // Node.js 단일 스레드에서 미들웨어 카운터는 동기 연산이므로 병렬 65개는
+  // LIMIT=60 초과를 보장한다.
+  const responses = await Promise.all(
+    Array.from({ length: 65 }, () => ctx.get('/api/health')),
+  );
+  const saw429 = responses.some((r) => r.status() === 429);
   await ctx.dispose();
   expect(saw429).toBeTruthy();
 });
