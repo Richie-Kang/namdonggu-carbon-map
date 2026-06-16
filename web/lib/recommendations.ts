@@ -10,6 +10,7 @@ export type ActionCard = {
   title: string;
   description: string;
   estimated_saving_pct: number;
+  investment_range_krw: [number, number];
   category: IndustryCategory[];
 };
 
@@ -19,6 +20,7 @@ export const ACTIONS: ActionCard[] = [
     title: 'LED 조명 교체',
     description: '형광등·할로겐 → LED로 교체 시 조명 전력 50~70% 절감.',
     estimated_saving_pct: 8,
+    investment_range_krw: [1_000_000, 5_000_000],
     category: ['food', 'office_retail', 'factory', 'residential', 'unknown'],
   },
   {
@@ -26,6 +28,7 @@ export const ACTIONS: ActionCard[] = [
     title: '폐열회수 환기 (ERV)',
     description: '주방·매장 환기열의 60~75%를 회수해 냉난방 부하 절감.',
     estimated_saving_pct: 12,
+    investment_range_krw: [5_000_000, 20_000_000],
     category: ['food'],
   },
   {
@@ -33,6 +36,7 @@ export const ACTIONS: ActionCard[] = [
     title: '인덕션 가스레인지 교체',
     description: '도시가스 → 인덕션. 효율 향상 + 가스 사용량 직접 감소.',
     estimated_saving_pct: 15,
+    investment_range_krw: [3_000_000, 15_000_000],
     category: ['food'],
   },
   {
@@ -40,6 +44,7 @@ export const ACTIONS: ActionCard[] = [
     title: '옥상 태양광 패널',
     description: '옥상 면적 활용. 주간 자가소비 + 잉여 판매. 평균 회수기간 7년.',
     estimated_saving_pct: 20,
+    investment_range_krw: [15_000_000, 80_000_000],
     category: ['office_retail', 'factory', 'residential'],
   },
   {
@@ -47,6 +52,7 @@ export const ACTIONS: ActionCard[] = [
     title: '고효율 공조 시스템',
     description: '인버터 EHP/터보냉동기로 전환. 부분부하 효율 ↑.',
     estimated_saving_pct: 10,
+    investment_range_krw: [8_000_000, 50_000_000],
     category: ['office_retail', 'factory'],
   },
   {
@@ -54,6 +60,7 @@ export const ACTIONS: ActionCard[] = [
     title: '폐열처리기 / 폐열보일러',
     description: '공정 폐열로 온수·증기 생산. 산업단지 가스 사용 절감.',
     estimated_saving_pct: 18,
+    investment_range_krw: [30_000_000, 200_000_000],
     category: ['factory'],
   },
   {
@@ -61,6 +68,7 @@ export const ACTIONS: ActionCard[] = [
     title: '인버터 동력 모터',
     description: '동력기기를 인버터 제어로 전환. 부하 변동 시 30%+ 절감.',
     estimated_saving_pct: 10,
+    investment_range_krw: [5_000_000, 40_000_000],
     category: ['factory'],
   },
   {
@@ -68,6 +76,7 @@ export const ACTIONS: ActionCard[] = [
     title: '베란다형 태양광',
     description: '가정용 미니 태양광. 월 평균 ~10kWh 자가소비.',
     estimated_saving_pct: 5,
+    investment_range_krw: [600_000, 1_500_000],
     category: ['residential'],
   },
   {
@@ -75,6 +84,7 @@ export const ACTIONS: ActionCard[] = [
     title: '단열·창호 개선',
     description: '단열재·이중창 보강으로 난방·냉방 부하 감소.',
     estimated_saving_pct: 12,
+    investment_range_krw: [5_000_000, 30_000_000],
     category: ['residential', 'unknown'],
   },
 ];

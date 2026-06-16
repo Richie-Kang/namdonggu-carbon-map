@@ -4,6 +4,12 @@ import { useEffect, useMemo, useState } from 'react';
 import dynamic from 'next/dynamic';
 import { useAppStore } from '@/store';
 import { USE_MAIN_CODES, LAND_USE_CATEGORIES, labelForUseCode } from '@/lib/use-codes';
+import {
+  applyUsageDelta,
+  formatUsageForUnit,
+  unitSuffix,
+  type UsageUnit,
+} from '@/lib/simulation-utils';
 
 const SimulationChart = dynamic(() => import('./SimulationChart').then((m) => m.SimulationChart), {
   ssr: false,
@@ -61,9 +67,9 @@ export function SimulationTab({
   const [popBaseline, setPopBaseline] = useState<number | null>(null);
   const [popTarget, setPopTarget] = useState<number | null>(null);
 
-  // null = 자동(인구 기반 계산), number = 사용자가 직접 지정한 값
-  const [elecOverride, setElecOverride] = useState<number | null>(null);
-  const [gasOverride, setGasOverride] = useState<number | null>(null);
+  const [usageUnit, setUsageUnit] = useState<UsageUnit>('monthly');
+  const [elecDeltaPct, setElecDeltaPct] = useState(0);
+  const [gasDeltaPct, setGasDeltaPct] = useState(0);
 
   const [loading, setLoading] = useState(false);
 
@@ -79,8 +85,9 @@ export function SimulationTab({
     setResult(null);
     setPopBaseline(null);
     setPopTarget(null);
-    setElecOverride(null);
-    setGasOverride(null);
+    setUsageUnit('monthly');
+    setElecDeltaPct(0);
+    setGasDeltaPct(0);
   }, [buildingId]);
 
   const callPredict = useMemo(
@@ -124,23 +131,27 @@ export function SimulationTab({
       ((currentBuilding.use_main_code as string | undefined) ?? '') ||
       '04000';
     const landCat = sim.land_use_category || 'commercial';
+    const targetElectricity = applyUsageDelta(current.electricity_kwh, elecDeltaPct);
+    const targetGas = applyUsageDelta(current.gas_m3, gasDeltaPct);
     callPredict({
       use_main_code: useCode,
       land_use_category: landCat,
       target_population: popTarget ?? undefined,
-      target_electricity_kwh: elecOverride ?? undefined,
-      target_gas_m3: gasOverride ?? undefined,
+      target_electricity_kwh: targetElectricity,
+      target_gas_m3: targetGas,
       industry_code: industryCode ?? undefined,
     });
   }, [
     sim.use_main_code,
     sim.land_use_category,
     popTarget,
-    elecOverride,
-    gasOverride,
+    elecDeltaPct,
+    gasDeltaPct,
     industryCode,
     callPredict,
     currentBuilding.use_main_code,
+    current.electricity_kwh,
+    current.gas_m3,
   ]);
 
   const delta = result ? result.co2_pred - current.co2_kg_month : 0;
@@ -153,13 +164,13 @@ export function SimulationTab({
   const popDelta = baselineInt != null ? targetInt - baselineInt : 0;
   const sliderMax = Math.max(50, (baselineInt ?? 10) * 4);
 
-  // 전기 슬라이더 범위: 0 ~ max(500, 평균 × 5)
-  const elecMax = Math.max(500, Math.ceil(current.electricity_kwh * 5));
-  const elecVal = elecOverride ?? current.electricity_kwh;
-
-  // 가스 슬라이더 범위: 0 ~ max(50, 평균 × 5)
-  const gasMax = Math.max(50, Math.ceil(current.gas_m3 * 5));
-  const gasVal = gasOverride ?? current.gas_m3;
+  const elecVal = applyUsageDelta(current.electricity_kwh, elecDeltaPct);
+  const gasVal = applyUsageDelta(current.gas_m3, gasDeltaPct);
+  const displayPeriod = unitSuffix(usageUnit);
+  const elecBaseDisplay = formatUsageForUnit(current.electricity_kwh, usageUnit);
+  const gasBaseDisplay = formatUsageForUnit(current.gas_m3, usageUnit);
+  const elecDisplay = formatUsageForUnit(elecVal, usageUnit);
+  const gasDisplay = formatUsageForUnit(gasVal, usageUnit);
 
   return (
     <div className="space-y-4">
@@ -185,7 +196,25 @@ export function SimulationTab({
       </section>
 
       <section className="space-y-3">
-        <h3 className="text-xs font-semibold uppercase tracking-wide text-slate-500">변경할 변수</h3>
+        <div className="flex items-center justify-between gap-2">
+          <h3 className="text-xs font-semibold uppercase tracking-wide text-slate-500">변경할 변수</h3>
+          <div className="flex rounded-md bg-slate-100 p-0.5 text-[11px]" aria-label="사용량 표시 단위">
+            <button
+              type="button"
+              onClick={() => setUsageUnit('monthly')}
+              className={`rounded px-2 py-0.5 ${usageUnit === 'monthly' ? 'bg-white font-semibold text-slate-900 shadow-sm' : 'text-slate-600'}`}
+            >
+              월
+            </button>
+            <button
+              type="button"
+              onClick={() => setUsageUnit('annual')}
+              className={`rounded px-2 py-0.5 ${usageUnit === 'annual' ? 'bg-white font-semibold text-slate-900 shadow-sm' : 'text-slate-600'}`}
+            >
+              연
+            </button>
+          </div>
+        </div>
 
         <label className="block text-xs">
           건물 주용도
@@ -252,69 +281,75 @@ export function SimulationTab({
         <div className="block text-xs">
           <div className="flex items-center justify-between">
             <span>
-              전기 사용량: <strong>{nf(elecVal)} kWh/월</strong>
-              {elecOverride == null && (
-                <span className="ml-1 text-slate-400">(인구 기반 자동)</span>
-              )}
+              전기 사용량: <strong>{nf(elecDisplay)} kWh/{displayPeriod}</strong>
+              <span className="ml-1 text-slate-500">
+                ({elecDeltaPct >= 0 ? '+' : ''}
+                {elecDeltaPct}%)
+              </span>
             </span>
-            {elecOverride != null && (
-              <button
-                type="button"
-                onClick={() => setElecOverride(null)}
-                className="text-[10px] text-slate-500 underline"
-              >
-                자동으로 되돌리기
-              </button>
-            )}
+            <button
+              type="button"
+              onClick={() => setElecDeltaPct(0)}
+              className="text-[10px] text-slate-500 underline"
+            >
+              현재 값으로 재설정
+            </button>
           </div>
           <input
             type="range"
-            min={0}
-            max={elecMax}
-            step={Math.max(1, Math.round(elecMax / 200))}
+            min={-100}
+            max={300}
+            step={5}
             className="mt-1 w-full"
-            value={Math.round(elecVal)}
-            onChange={(e) => setElecOverride(Number(e.target.value))}
+            value={elecDeltaPct}
+            onChange={(e) => setElecDeltaPct(Number(e.target.value))}
           />
+          <div className="mt-0.5 text-[10px] text-slate-500">
+            현재 {nf(elecBaseDisplay)} kWh/{displayPeriod} 기준
+          </div>
         </div>
 
         {/* 가스 슬라이더 */}
         <div className="block text-xs">
           <div className="flex items-center justify-between">
             <span>
-              가스 사용량: <strong>{nf(gasVal)} m³/월</strong>
-              {gasOverride == null && (
-                <span className="ml-1 text-slate-400">(인구 기반 자동)</span>
-              )}
+              가스 사용량: <strong>{nf(gasDisplay)} m³/{displayPeriod}</strong>
+              <span className="ml-1 text-slate-500">
+                ({gasDeltaPct >= 0 ? '+' : ''}
+                {gasDeltaPct}%)
+              </span>
             </span>
-            {gasOverride != null && (
-              <button
-                type="button"
-                onClick={() => setGasOverride(null)}
-                className="text-[10px] text-slate-500 underline"
-              >
-                자동으로 되돌리기
-              </button>
-            )}
+            <button
+              type="button"
+              onClick={() => setGasDeltaPct(0)}
+              className="text-[10px] text-slate-500 underline"
+            >
+              현재 값으로 재설정
+            </button>
           </div>
           <input
             type="range"
-            min={0}
-            max={gasMax}
-            step={Math.max(1, Math.round(gasMax / 200))}
+            min={-100}
+            max={300}
+            step={5}
             className="mt-1 w-full"
-            value={Math.round(gasVal)}
-            onChange={(e) => setGasOverride(Number(e.target.value))}
+            value={gasDeltaPct}
+            onChange={(e) => setGasDeltaPct(Number(e.target.value))}
           />
+          <div className="mt-0.5 text-[10px] text-slate-500">
+            현재 {nf(gasBaseDisplay)} m³/{displayPeriod} 기준
+          </div>
         </div>
       </section>
 
       {/* 업종 배출 계수 배지 */}
       {result?.industry_multiplier != null && (
         <section className="rounded-md bg-orange-50 px-3 py-2 text-[11px] text-orange-900 ring-1 ring-orange-200">
-          🏭 <strong>{result.industry_label}</strong> 업종 배출 계수{' '}
+          <strong>{result.industry_label}</strong> 업종 배출 계수{' '}
           <strong>{result.industry_multiplier}배</strong> 적용됨
-          <span className="ml-1 text-orange-600">(공정 배출 + 에너지 집약도)</span>
+          <span className="ml-1 text-orange-700">
+            KSIC 2자리 대분류 기준, 제조·에너지 집약 업종의 공정 배출과 에너지 집약도를 반영합니다.
+          </span>
         </section>
       )}
 

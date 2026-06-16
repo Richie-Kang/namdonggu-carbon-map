@@ -30,6 +30,7 @@ from features import FEATURE_COLS, build_features, make_pseudo_labels, to_matrix
 
 MODEL_DIR = Path(__file__).resolve().parent / "models"
 MODEL_DIR.mkdir(exist_ok=True)
+FOLD_AUDIT_PATH = MODEL_DIR / "population_folds.csv"
 
 XGB_PARAMS = dict(
     objective="reg:squarederror",
@@ -323,6 +324,64 @@ def model_passes_quality_gate(metrics: dict) -> bool:
     )
 
 
+def build_selection_explanation(
+    selected_model: str,
+    selection_policy: str,
+    model_comparison: dict[str, dict],
+) -> dict:
+    rows = {}
+    for name, metrics in model_comparison.items():
+        rows[name] = {
+            "r2_raw_mean": metrics.get("r2_raw_mean"),
+            "mae_post_mean": metrics.get("mae_post_mean"),
+            "grid_violation_post_mean": metrics.get("grid_violation_post_mean"),
+            "passes_quality_gate": model_passes_quality_gate(metrics),
+        }
+    selected = rows.get(selected_model, {})
+    return {
+        "selected_model": selected_model,
+        "selection_policy": selection_policy,
+        "quality_gate": {
+            "r2_raw_mean_min": SELECTION_THRESHOLDS["r2_raw_min"],
+            "grid_violation_post_mean_max": SELECTION_THRESHOLDS["grid_violation_post_max"],
+        },
+        "model_metrics": rows,
+        "reason": (
+            f"{selected_model} selected because it satisfied the quality gate "
+            f"(r2_raw_mean={selected.get('r2_raw_mean')}, "
+            f"grid_violation_post_mean={selected.get('grid_violation_post_mean')}) "
+            f"and had the lowest mae_post_mean={selected.get('mae_post_mean')} "
+            "among eligible models."
+        ),
+    }
+
+
+def export_fold_audit(df: pd.DataFrame, y: np.ndarray, folds: np.ndarray) -> None:
+    """Write train/validation membership so model evaluation is auditable."""
+    base_cols = [
+        "building_id",
+        "grid_id",
+        "population",
+        "area_total",
+        "use_main_code",
+        *FEATURE_COLS,
+    ]
+    available = []
+    for col in base_cols:
+        if col in df.columns and col not in available:
+            available.append(col)
+    records = []
+    for fold in sorted(set(folds.tolist())):
+        roles = np.where(folds == fold, f"fold_{fold}_validation", f"fold_{fold}_train")
+        block = df[available].copy()
+        block.insert(0, "fold", int(fold))
+        block.insert(1, "split_role", roles)
+        block["target_population"] = y
+        records.append(block)
+    if records:
+        pd.concat(records, ignore_index=True).to_csv(FOLD_AUDIT_PATH, index=False)
+
+
 def json_safe(value: Any) -> Any:
     if isinstance(value, dict):
         return {str(k): json_safe(v) for k, v in value.items()}
@@ -395,6 +454,7 @@ def main() -> int:
     y = make_pseudo_labels(df).to_numpy()
     X = to_matrix(df)
     fold_plan = validation_folds(df)
+    export_fold_audit(df, y, fold_plan.folds)
 
     model_comparison: dict[str, dict] = {}
     for model_name in MODEL_NAMES:
@@ -424,6 +484,9 @@ def main() -> int:
             selected_pool = valid_models
             selection_policy = "lowest_mae_post_no_model_met_quality_gate"
             snap.warnings.append("no_model_met_quality_gate")
+        # Selection is intentionally two-step: first reject models that fail
+        # spatial plausibility (grid total violation) or raw fit (R2), then pick
+        # the lowest post-processed MAE because that is the value users see.
         selected_model = min(selected_pool, key=lambda n: selected_pool[n]["mae_post_mean"])
         selected_metrics = valid_models[selected_model]
         for key, value in selected_metrics.items():
@@ -458,6 +521,11 @@ def main() -> int:
         "params": model_params()[selected_model],
         "model_params": model_params(),
         "model_comparison": model_comparison,
+        "selection_explanation": build_selection_explanation(
+            selected_model,
+            selection_policy,
+            model_comparison,
+        ),
         "metrics": snap.metrics,
         "energy_coeffs": coeffs,
         "emission_factors": {"electricity_kg_per_kwh": 0.4781, "gas_kg_per_m3": 2.176},

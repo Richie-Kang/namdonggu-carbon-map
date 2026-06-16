@@ -4,6 +4,7 @@ import { PredictRequest, type PredictResponse } from '@/lib/zod-schemas';
 import { totalCo2 } from '@/lib/emission-factors';
 import { getIndustryMultiplier } from '@/lib/industry-factors';
 import { getModel } from '@/lib/onnx';
+import { resolveBuildingHeight } from '@/lib/building-metrics';
 
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
@@ -86,7 +87,7 @@ export async function POST(req: NextRequest) {
       Number(building.area_total ?? 0),
       Number(building.floors_above ?? 0),
       Number(building.floors_below ?? 0),
-      Number(building.height_m ?? 0),
+      resolveBuildingHeight(building.height_m, building.floors_above).value ?? 0,
       1990,
       useCodeInt,
       land_use_category === 'residential' ? 1 : 0,

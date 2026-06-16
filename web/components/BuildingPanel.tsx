@@ -7,6 +7,9 @@ import { useAppStore } from '@/store';
 import { ActionRecommender } from './ActionRecommender';
 import { SimulationTab } from './SimulationTab';
 import { categoryForUseCode, labelForUseCode } from '@/lib/use-codes';
+import { resolveBuildingHeight } from '@/lib/building-metrics';
+import { EMISSION_FACTORS, totalCo2 } from '@/lib/emission-factors';
+import { getIndustryMultiplier } from '@/lib/industry-factors';
 import type { ReportResponse } from '@/lib/zod-schemas';
 
 const EnergyChart = dynamic(() => import('./EnergyChart').then((m) => m.EnergyChart), {
@@ -34,6 +37,30 @@ async function fetcher(url: string): Promise<BuildingDetail> {
 function nf(n: number | undefined | null, suffix = ''): string {
   if (n == null || Number.isNaN(n)) return '—';
   return n.toLocaleString('ko-KR', { maximumFractionDigits: 1 }) + suffix;
+}
+
+function ni(n: number | undefined | null, suffix = ''): string {
+  if (n == null || Number.isNaN(n)) return '—';
+  return Math.round(n).toLocaleString('ko-KR') + suffix;
+}
+
+function krw(n: number | undefined | null): string {
+  if (n == null || Number.isNaN(n)) return '—';
+  if (n >= 100_000_000) return `${(n / 100_000_000).toLocaleString('ko-KR', { maximumFractionDigits: 1 })}억원`;
+  if (n >= 10_000) return `${Math.round(n / 10_000).toLocaleString('ko-KR')}만원`;
+  return `${Math.round(n).toLocaleString('ko-KR')}원`;
+}
+
+function average(rows: EnergyRow[], key: keyof EnergyRow): number {
+  if (!rows.length) return 0;
+  const sum = rows.reduce((acc, r) => acc + (Number(r[key]) || 0), 0);
+  return sum / rows.length;
+}
+
+function industryPrefix(code?: string | null): string | null {
+  if (!code) return null;
+  const digits = code.replace(/^[A-Za-z]+/, '').replace(/\D/g, '');
+  return digits.slice(0, 2) || null;
 }
 
 function shortId(id: string | undefined | null): string {
@@ -194,14 +221,22 @@ function DataTab({
   shortId: (s: string | undefined | null) => string;
 }) {
   const [showMore, setShowMore] = useState(false);
+  const [showCarbonAdjustment, setShowCarbonAdjustment] = useState(false);
   const useMainCode = building.use_main_code as string | undefined;
+  const industryCode = factories[0]?.industry_code ?? businesses[0]?.industry_code ?? null;
   const industry =
-    businesses[0]?.industry_name ?? factories[0]?.industry_name ?? null;
+    factories[0]?.industry_name ?? businesses[0]?.industry_name ?? null;
 
   const approvedAt = building.approved_at as string | undefined | null;
-  const heightM = building.height_m as number | undefined | null;
+  const height = resolveBuildingHeight(building.height_m, building.floors_above);
   const popPred = building.population_pred as number | undefined | null;
   const addressJibun = building.address_jibun as string | undefined | null;
+  const industryMultiplier = getIndustryMultiplier(industryCode);
+  const avgElectricity = average(energy, 'electricity_kwh');
+  const avgGas = average(energy, 'gas_m3');
+  const baseCo2 = totalCo2({ electricity_kwh: avgElectricity, gas_m3: avgGas });
+  const adjustedCo2 = baseCo2 * industryMultiplier.multiplier;
+  const prefix = industryPrefix(industryCode);
 
   return (
     <div className="space-y-4">
@@ -212,6 +247,8 @@ function DataTab({
           <dd className="col-span-2">{useMain}</dd>
           <dt className="text-slate-500">업종</dt>
           <dd className="col-span-2">{industry ?? '데이터 없음'}</dd>
+          <dt className="text-slate-500">상주인구(예측)</dt>
+          <dd className="col-span-2">{popPred != null ? `약 ${ni(Number(popPred), '명')}` : '—'}</dd>
           <dt className="text-slate-500">연면적</dt>
           <dd className="col-span-2">{nf(building.area_total as number, ' ㎡')}</dd>
           <dt className="text-slate-500">건축면적</dt>
@@ -221,15 +258,16 @@ function DataTab({
             지상 {nf(building.floors_above as number)} · 지하 {nf(building.floors_below as number)}
           </dd>
 
-          {/* 더보기 — 준공일, 높이, 상주인구예측, 지번주소 */}
+          {/* 더보기 — 준공일, 높이, 지번주소 */}
           {showMore && (
             <>
               <dt className="text-slate-500">준공일</dt>
               <dd className="col-span-2">{approvedAt ?? '—'}</dd>
               <dt className="text-slate-500">높이</dt>
-              <dd className="col-span-2">{nf(heightM, ' m')}</dd>
-              <dt className="text-slate-500">상주인구(예측)</dt>
-              <dd className="col-span-2">{popPred != null ? `약 ${Math.round(Number(popPred)).toLocaleString('ko-KR')}명` : '—'}</dd>
+              <dd className="col-span-2">
+                {nf(height.value, ' m')}
+                {height.estimated && <span className="ml-1 text-[11px] text-slate-500">(층수 기반 추정)</span>}
+              </dd>
               <dt className="text-slate-500">지번주소</dt>
               <dd className="col-span-2 break-all text-xs">{addressJibun ?? '—'}</dd>
             </>
@@ -245,8 +283,34 @@ function DataTab({
       </section>
 
       <section>
-        <h3 className="mb-1 text-xs font-semibold uppercase tracking-wide text-slate-500">탄소배출 (최근)</h3>
+        <div className="mb-1 flex items-center justify-between gap-2">
+          <h3 className="text-xs font-semibold uppercase tracking-wide text-slate-500">탄소배출 (최근)</h3>
+          <button
+            type="button"
+            onClick={() => setShowCarbonAdjustment((v) => !v)}
+            className="rounded border border-slate-300 px-2 py-0.5 text-[10px] text-slate-600 hover:bg-slate-50"
+            aria-expanded={showCarbonAdjustment}
+          >
+            업종 보정
+          </button>
+        </div>
         <p className="text-2xl font-bold">{nf(building.co2_kg_month as number, ' kg/월')}</p>
+        {showCarbonAdjustment && (
+          <div className="mt-2 rounded-md bg-slate-50 p-2 text-[11px] leading-relaxed text-slate-600 ring-1 ring-slate-200">
+            <p>
+              {industryMultiplier.multiplier === 1
+                ? '업종 보정 없음: 일반 업종 승수 1.0배를 적용합니다.'
+                : `${industryMultiplier.label} 보정: KSIC ${prefix ?? '미상'} 대분류 승수 ${industryMultiplier.multiplier}배를 적용합니다.`}
+            </p>
+            <p className="mt-1">
+              산식: 전기 {EMISSION_FACTORS.electricity.factor} kg/kWh × {nf(avgElectricity)} kWh + 가스{' '}
+              {EMISSION_FACTORS.gas_lng.factor} kg/m³ × {nf(avgGas)} m³ = {nf(baseCo2)} kg/월
+            </p>
+            <p className="mt-1">
+              업종 보정값: {nf(baseCo2)} × {industryMultiplier.multiplier} = {nf(adjustedCo2)} kg/월
+            </p>
+          </div>
+        )}
       </section>
 
       {energy.length > 0 && (
@@ -293,10 +357,7 @@ function DataTab({
         </section>
       )}
 
-      <ActionRecommender
-        useMainCode={useMainCode ?? null}
-        industryCode={businesses[0]?.industry_code ?? factories[0]?.industry_code ?? null}
-      />
+      <ActionRecommender useMainCode={useMainCode ?? null} industryCode={industryCode} />
 
       <AiReportSection buildingId={buildingId} />
 
@@ -364,9 +425,9 @@ function AiReportSection({ buildingId }: { buildingId: string }) {
           <p className="leading-relaxed text-slate-800">{report.summary}</p>
 
           <div>
-            <h4 className="mb-1 font-semibold text-slate-600">배출 요인</h4>
+            <h4 className="mb-1 font-semibold text-slate-600">업종 기반 판단</h4>
             <ul className="list-disc space-y-1 pl-4">
-              {report.emission_drivers.map((item) => (
+              {report.industry_reasoning.map((item) => (
                 <li key={item}>{item}</li>
               ))}
             </ul>
@@ -375,8 +436,8 @@ function AiReportSection({ buildingId }: { buildingId: string }) {
           <div>
             <h4 className="mb-1 font-semibold text-slate-600">우선 액션</h4>
             <ul className="space-y-2">
-              {report.recommended_actions.map((action) => (
-                <li key={`${action.title}-${action.rationale}`} className="border-l-2 border-emerald-400 pl-2">
+              {report.priority_actions.map((action) => (
+                <li key={`${action.title}-${action.why_priority}`} className="border-l-2 border-emerald-400 pl-2">
                   <div className="flex items-baseline justify-between gap-2">
                     <strong className="text-slate-800">{action.title}</strong>
                     {action.estimated_saving_pct != null && (
@@ -385,13 +446,29 @@ function AiReportSection({ buildingId }: { buildingId: string }) {
                       </span>
                     )}
                   </div>
-                  <p className="mt-0.5 text-slate-600">{action.rationale}</p>
+                  <p className="mt-0.5 text-slate-600">{action.why_priority}</p>
+                  <dl className="mt-1 grid grid-cols-2 gap-x-2 gap-y-0.5 text-[11px] text-slate-500">
+                    <dt>월 비용절감</dt>
+                    <dd className="text-right text-slate-700">{krw(action.estimated_monthly_cost_saving_krw)}</dd>
+                    <dt>월 탄소절감</dt>
+                    <dd className="text-right text-slate-700">{ni(action.estimated_monthly_co2_saving_kg, ' kg')}</dd>
+                    <dt>투자비</dt>
+                    <dd className="text-right text-slate-700">
+                      {action.investment_range_krw
+                        ? `${krw(action.investment_range_krw[0])}~${krw(action.investment_range_krw[1])}`
+                        : '—'}
+                    </dd>
+                    <dt>BEP</dt>
+                    <dd className="text-right text-slate-700">
+                      {action.bep_months_range
+                        ? `${action.bep_months_range[0]}~${action.bep_months_range[1]}개월`
+                        : '—'}
+                    </dd>
+                  </dl>
                 </li>
               ))}
             </ul>
           </div>
-
-          <p className="font-medium text-slate-700">{report.estimated_impact}</p>
 
           <ul className="list-disc space-y-1 pl-4 text-[11px] text-slate-500">
             {report.caveats.map((item) => (

@@ -2,6 +2,7 @@ import { NextResponse, type NextRequest } from 'next/server';
 import { supabasePublic } from '@/lib/supabase';
 import { recommendActions } from '@/lib/recommendations';
 import { BuildingId, ReportResponse } from '@/lib/zod-schemas';
+import { ENERGY_PRICE_KRW, estimateActionEconomics } from '@/lib/action-economics';
 
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
@@ -37,29 +38,60 @@ type BuildingDetail = {
 const REPORT_SCHEMA = {
   type: 'object',
   additionalProperties: false,
-  required: ['summary', 'emission_drivers', 'recommended_actions', 'estimated_impact', 'caveats'],
+  required: ['summary', 'industry_reasoning', 'priority_actions', 'caveats'],
   properties: {
     summary: { type: 'string' },
-    emission_drivers: {
+    industry_reasoning: {
       type: 'array',
       minItems: 1,
       items: { type: 'string' },
     },
-    recommended_actions: {
+    priority_actions: {
       type: 'array',
       minItems: 1,
       items: {
         type: 'object',
         additionalProperties: false,
-        required: ['title', 'rationale', 'estimated_saving_pct'],
+        required: [
+          'title',
+          'why_priority',
+          'estimated_saving_pct',
+          'estimated_monthly_cost_saving_krw',
+          'estimated_monthly_co2_saving_kg',
+          'investment_range_krw',
+          'bep_months_range',
+        ],
         properties: {
           title: { type: 'string' },
-          rationale: { type: 'string' },
+          why_priority: { type: 'string' },
           estimated_saving_pct: { type: ['number', 'null'] },
+          estimated_monthly_cost_saving_krw: { type: ['number', 'null'] },
+          estimated_monthly_co2_saving_kg: { type: ['number', 'null'] },
+          investment_range_krw: {
+            anyOf: [
+              { type: 'null' },
+              {
+                type: 'array',
+                minItems: 2,
+                maxItems: 2,
+                items: { type: 'number' },
+              },
+            ],
+          },
+          bep_months_range: {
+            anyOf: [
+              { type: 'null' },
+              {
+                type: 'array',
+                minItems: 2,
+                maxItems: 2,
+                items: { type: 'number' },
+              },
+            ],
+          },
         },
       },
     },
-    estimated_impact: { type: 'string' },
     caveats: {
       type: 'array',
       minItems: 1,
@@ -75,6 +107,12 @@ function numberOrNull(value: unknown): number | null {
 
 function textOrNull(value: unknown): string | null {
   return typeof value === 'string' && value.trim() ? value.trim() : null;
+}
+
+function average(rows: EnergyRow[], key: keyof EnergyRow): number | null {
+  const values = rows.map((r) => numberOrNull(r[key])).filter((v): v is number => v != null);
+  if (!values.length) return null;
+  return values.reduce((acc, v) => acc + v, 0) / values.length;
 }
 
 function extractOpenAIText(payload: unknown): string | null {
@@ -122,22 +160,27 @@ function buildReportInput(buildingId: string, detail: BuildingDetail) {
   const firstBusiness = businesses[0];
   const firstFactory = factories[0];
   const useMainCode = textOrNull(building.use_main_code);
-  const industryCode = firstBusiness?.industry_code ?? firstFactory?.industry_code ?? null;
+  const industryCode = firstFactory?.industry_code ?? firstBusiness?.industry_code ?? null;
+  const currentEnergy = {
+    electricity_kwh_month: average(energy, 'electricity_kwh'),
+    gas_m3_month: average(energy, 'gas_m3'),
+    co2_kg_month: numberOrNull(building.co2_kg_month) ?? average(energy, 'co2_kg'),
+  };
   const actions = recommendActions(useMainCode, industryCode).map((action) => ({
     title: action.title,
     description: action.description,
     estimated_saving_pct: action.estimated_saving_pct,
+    ...estimateActionEconomics(action, currentEnergy),
   }));
 
   return {
     building_id: buildingId,
-    address: textOrNull(building.address_road) ?? textOrNull(building.address_jibun),
     building_name: textOrNull(building.name) ?? firstBusiness?.name ?? firstFactory?.name ?? null,
     use_main: textOrNull(building.use_main),
     use_main_code: useMainCode,
-    area_total_m2: numberOrNull(building.area_total),
-    floors_above: numberOrNull(building.floors_above),
     current_co2_kg_month: numberOrNull(building.co2_kg_month),
+    current_energy_monthly: currentEnergy,
+    energy_price_assumptions_krw: ENERGY_PRICE_KRW,
     businesses: businesses.slice(0, 5).map((b) => ({
       name: b.name ?? null,
       industry_name: b.industry_name ?? null,
@@ -200,8 +243,10 @@ export async function GET(req: NextRequest) {
       instructions: [
         '너는 인천 남동구 탄소지도 플랫폼의 기업 탄소배출 분석가다.',
         '제공된 JSON 데이터만 근거로 한국어 요약 보고서를 작성한다.',
-        '규제, 보조금, 비용, 절감률은 입력 데이터나 추천 액션에 없는 내용을 지어내지 않는다.',
-        '모든 수치는 추정치임을 caveats에 명시한다.',
+        '면적, 층수 같은 기본 속성 요약은 쓰지 말고 업종과 에너지 사용 특성에 집중한다.',
+        '우선 액션은 업종에 기반해 왜 먼저 해야 하는지, 월 비용 절감, 월 탄소 절감, BEP를 중심으로 설명한다.',
+        '비용, 절감률, BEP는 입력 JSON의 rule_based_actions 값만 사용하고 새 값을 지어내지 않는다.',
+        '모든 비용과 절감량은 추정치이며 단가 가정을 사용했다는 점을 caveats에 명시한다.',
       ].join('\n'),
       input: JSON.stringify(reportInput),
       text: {

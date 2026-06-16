@@ -53,15 +53,18 @@ export type PredictResponse = z.infer<typeof PredictResponse>;
 
 export const ReportAction = z.object({
   title: z.string(),
-  rationale: z.string(),
+  why_priority: z.string(),
   estimated_saving_pct: z.number().nullable(),
+  estimated_monthly_cost_saving_krw: z.number().nullable(),
+  estimated_monthly_co2_saving_kg: z.number().nullable(),
+  investment_range_krw: z.tuple([z.number(), z.number()]).nullable(),
+  bep_months_range: z.tuple([z.number(), z.number()]).nullable(),
 });
 
 export const ReportResponse = z.object({
   summary: z.string(),
-  emission_drivers: z.array(z.string()).min(1),
-  recommended_actions: z.array(ReportAction).min(1),
-  estimated_impact: z.string(),
+  industry_reasoning: z.array(z.string()).min(1),
+  priority_actions: z.array(ReportAction).min(1),
   caveats: z.array(z.string()).min(1),
 });
 
