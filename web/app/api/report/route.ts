@@ -3,6 +3,7 @@ import { supabasePublic } from '@/lib/supabase';
 import { recommendActions } from '@/lib/recommendations';
 import { BuildingId, ReportResponse as ReportResponseSchema, type ReportResponse } from '@/lib/zod-schemas';
 import { ENERGY_PRICE_KRW, estimateActionEconomics } from '@/lib/action-economics';
+import { electricityKwhFromCo2 } from '@/lib/emission-factors';
 
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
@@ -161,10 +162,13 @@ function buildReportInput(buildingId: string, detail: BuildingDetail) {
   const firstFactory = factories[0];
   const useMainCode = textOrNull(building.use_main_code);
   const industryCode = firstFactory?.industry_code ?? firstBusiness?.industry_code ?? null;
+  const co2Month = numberOrNull(building.co2_kg_month) ?? average(energy, 'co2_kg');
+  const electricityMonth = average(energy, 'electricity_kwh');
+  const gasMonth = average(energy, 'gas_m3');
   const currentEnergy = {
-    electricity_kwh_month: average(energy, 'electricity_kwh'),
-    gas_m3_month: average(energy, 'gas_m3'),
-    co2_kg_month: numberOrNull(building.co2_kg_month) ?? average(energy, 'co2_kg'),
+    electricity_kwh_month: electricityMonth ?? (co2Month != null ? electricityKwhFromCo2(co2Month) : null),
+    gas_m3_month: gasMonth,
+    co2_kg_month: co2Month,
   };
   const actions = recommendActions(useMainCode, industryCode).map((action) => ({
     title: action.title,
@@ -178,7 +182,7 @@ function buildReportInput(buildingId: string, detail: BuildingDetail) {
     building_name: textOrNull(building.name) ?? firstBusiness?.name ?? firstFactory?.name ?? null,
     use_main: textOrNull(building.use_main),
     use_main_code: useMainCode,
-    current_co2_kg_month: numberOrNull(building.co2_kg_month),
+    current_co2_kg_month: co2Month,
     current_energy_monthly: currentEnergy,
     energy_price_assumptions_krw: ENERGY_PRICE_KRW,
     businesses: businesses.slice(0, 5).map((b) => ({

@@ -27,6 +27,8 @@ type State = {
   showRoads: boolean;
   themeMode: ThemeMode;
   co2Period: UsageUnit;
+  co2SelectedMonth: string | null;
+  co2SelectedYear: string | null;
   industryFilter: IndustryFilter;
   selectedDong: { name: string; code: string } | null;
 };
@@ -40,6 +42,8 @@ type Actions = {
   toggleLayer: (k: 'showBuildings' | 'showGrid' | 'showBoundary' | 'showRoads') => void;
   setTheme: (t: ThemeMode) => void;
   setCo2Period: (p: UsageUnit) => void;
+  setCo2SelectedMonth: (m: string | null) => void;
+  setCo2SelectedYear: (y: string | null) => void;
   setIndustryFilter: (f: IndustryFilter) => void;
   setSelectedDong: (d: { name: string; code: string } | null) => void;
 };
@@ -58,6 +62,8 @@ export const useAppStore = create<State & Actions>((set) => ({
   showRoads: false,
   themeMode: 'co2',
   co2Period: 'monthly',
+  co2SelectedMonth: null,
+  co2SelectedYear: null,
   industryFilter: 'all',
   selectedDong: null,
   setSelected: (b) => set({ selected: b, panelTab: 'data' }),
@@ -73,6 +79,8 @@ export const useAppStore = create<State & Actions>((set) => ({
   toggleLayer: (k) => set((state) => ({ [k]: !state[k] } as Partial<State>)),
   setTheme: (t) => set({ themeMode: t }),
   setCo2Period: (p) => set({ co2Period: p }),
+  setCo2SelectedMonth: (m) => set({ co2SelectedMonth: m }),
+  setCo2SelectedYear: (y) => set({ co2SelectedYear: y }),
   setIndustryFilter: (f) => set({ industryFilter: f }),
   setSelectedDong: (d) => set({ selectedDong: d }),
 }));

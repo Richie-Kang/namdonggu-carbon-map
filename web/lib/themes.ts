@@ -102,12 +102,24 @@ function co2AbsoluteColor(period: UsageUnit): ExpressionSpecification {
   ] as unknown as ExpressionSpecification;
 }
 
+function co2FeatureStateColor(period: UsageUnit): ExpressionSpecification {
+  return [
+    'case',
+    ['==', ['feature-state', 'co2_quintile_override'], 1], '#16a34a',
+    ['==', ['feature-state', 'co2_quintile_override'], 2], '#84cc16',
+    ['==', ['feature-state', 'co2_quintile_override'], 3], '#eab308',
+    ['==', ['feature-state', 'co2_quintile_override'], 4], '#f97316',
+    ['==', ['feature-state', 'co2_quintile_override'], 5], '#dc2626',
+    co2AbsoluteColor(period),
+  ] as unknown as ExpressionSpecification;
+}
+
 export function buildingPaintExpr(theme: ThemeMode, period: UsageUnit = 'monthly'): ExpressionSpecification {
   switch (theme) {
     case 'population': return POPULATION_COLOR;
     case 'land_use':   return LAND_USE_COLOR;
     case 'energy':     return ENERGY_COLOR;
-    default:           return co2AbsoluteColor(period);
+    default:           return co2FeatureStateColor(period);
   }
 }
 
@@ -128,7 +140,7 @@ export function gridPaintExpr(theme: ThemeMode, period: UsageUnit = 'monthly'): 
     case 'population': return POPULATION_COLOR;
     case 'land_use':   return GRID_LAND_USE_COLOR;
     case 'energy':     return ENERGY_COLOR;
-    default:           return co2AbsoluteColor(period);
+    default:           return CO2_QUINTILE_COLOR;
   }
 }
 
@@ -174,6 +186,14 @@ const CO2_ANNUAL_LEGEND: LegendItem[] = [
   { color: '#dc2626', label: '60 t/년+' },
 ];
 
+const CO2_GRID_LEGEND: LegendItem[] = [
+  { color: '#16a34a', label: '하위 20%' },
+  { color: '#84cc16', label: '20–40%' },
+  { color: '#eab308', label: '40–60%' },
+  { color: '#f97316', label: '60–80%' },
+  { color: '#dc2626', label: '상위 20%' },
+];
+
 const POPULATION_LEGEND: LegendItem[] = [
   { color: '#eff6ff', label: '0–4명' },
   { color: '#bfdbfe', label: '5–19명' },
@@ -205,6 +225,11 @@ export function legendItems(theme: ThemeMode, period: UsageUnit = 'monthly'): Le
     case 'energy':     return ENERGY_LEGEND;
     default:           return period === 'annual' ? CO2_ANNUAL_LEGEND : CO2_LEGEND;
   }
+}
+
+export function gridLegendItems(theme: ThemeMode): LegendItem[] {
+  if (theme === 'co2') return CO2_GRID_LEGEND;
+  return legendItems(theme);
 }
 
 export function themeNote(theme: ThemeMode, period: UsageUnit = 'monthly'): string | undefined {

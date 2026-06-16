@@ -1,12 +1,14 @@
 'use client';
 
-import { useEffect } from 'react';
+import { useEffect, useRef } from 'react';
 import { useAppStore } from '@/store';
 import { useMapInit, applyVisibility, applyTheme, applyDongHighlight, MAP_CONST } from './useMapInit';
 import { BuildingPanel } from './BuildingPanel';
 import { Legend } from './Legend';
 import { TopBar } from './TopBar';
 import { GridFocusList } from './GridFocusList';
+
+type Co2QuintileRow = { building_id: string; co2_quintile: number };
 
 export default function MapView() {
   const setSelected = useAppStore((s) => s.setSelected);
@@ -17,10 +19,13 @@ export default function MapView() {
   const showRoads = useAppStore((s) => s.showRoads);
   const themeMode = useAppStore((s) => s.themeMode);
   const co2Period = useAppStore((s) => s.co2Period);
+  const co2SelectedMonth = useAppStore((s) => s.co2SelectedMonth);
+  const co2SelectedYear = useAppStore((s) => s.co2SelectedYear);
   const industryFilter = useAppStore((s) => s.industryFilter);
   const selectedDong = useAppStore((s) => s.selectedDong);
   const { containerRef, mapRef, ready, zoom, gridFocus, setGridFocus, setPin, clearPin } =
     useMapInit(setSelected);
+  const co2StateIdsRef = useRef<string[]>([]);
 
   useEffect(() => {
     if (mapRef.current && ready) {
@@ -33,6 +38,52 @@ export default function MapView() {
       applyTheme(mapRef.current, themeMode, co2Period, industryFilter, selectedDong?.code ?? null);
     }
   }, [themeMode, co2Period, industryFilter, selectedDong, ready, mapRef]);
+
+  useEffect(() => {
+    const map = mapRef.current;
+    if (!map || !ready || themeMode !== 'co2') return;
+
+    const params = new URLSearchParams({ period: co2Period });
+    if (co2Period === 'monthly') {
+      if (!co2SelectedMonth) return;
+      params.set('yyyymm', co2SelectedMonth);
+    } else {
+      if (!co2SelectedYear) return;
+      params.set('year', co2SelectedYear);
+    }
+
+    let cancelled = false;
+    fetch(`/api/co2-quintiles?${params.toString()}`)
+      .then((r) => {
+        if (!r.ok) throw new Error(`http_${r.status}`);
+        return r.json() as Promise<{ rows: Co2QuintileRow[] }>;
+      })
+      .then(({ rows }) => {
+        if (cancelled || !map.getSource('buildings-pmtiles')) return;
+        for (const id of co2StateIdsRef.current) {
+          map.removeFeatureState(
+            { source: 'buildings-pmtiles', sourceLayer: 'buildings', id },
+            'co2_quintile_override',
+          );
+        }
+        co2StateIdsRef.current = [];
+        for (const row of rows) {
+          if (!row.building_id || !row.co2_quintile) continue;
+          map.setFeatureState(
+            { source: 'buildings-pmtiles', sourceLayer: 'buildings', id: row.building_id },
+            { co2_quintile_override: row.co2_quintile },
+          );
+          co2StateIdsRef.current.push(row.building_id);
+        }
+      })
+      .catch(() => {
+        // Keep the baked-in tile colors if the period overlay cannot be loaded.
+      });
+
+    return () => {
+      cancelled = true;
+    };
+  }, [co2Period, co2SelectedMonth, co2SelectedYear, ready, themeMode, mapRef]);
 
   useEffect(() => {
     if (mapRef.current && ready) {

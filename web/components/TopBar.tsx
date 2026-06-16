@@ -1,5 +1,6 @@
 'use client';
 
+import { useEffect, useMemo } from 'react';
 import useSWR from 'swr';
 import { useAppStore } from '@/store';
 import { SearchBox } from './SearchBox';
@@ -17,6 +18,19 @@ async function fetchDongs(url: string): Promise<{ dongs: DongItem[] }> {
   return r.json() as Promise<{ dongs: DongItem[] }>;
 }
 
+type Co2Periods = { months: string[]; years: string[] };
+
+async function fetchCo2Periods(url: string): Promise<Co2Periods> {
+  const r = await fetch(url);
+  if (!r.ok) throw new Error(`http_${r.status}`);
+  return r.json() as Promise<Co2Periods>;
+}
+
+function monthLabel(yyyymm: string, showYear: boolean): string {
+  const month = Number(yyyymm.slice(4, 6));
+  return showYear ? `${yyyymm.slice(2, 4)}.${month}월` : `${month}월`;
+}
+
 const THEMES = Object.entries(THEME_META) as [ThemeMode, { label: string }][];
 const FILTERS = Object.entries(INDUSTRY_FILTER_META) as [IndustryFilter, string][];
 
@@ -28,9 +42,13 @@ export function TopBar({ onFly }: { onFly: (lon: number, lat: number) => void })
   const toggleLayer = useAppStore((s) => s.toggleLayer);
   const themeMode = useAppStore((s) => s.themeMode);
   const co2Period = useAppStore((s) => s.co2Period);
+  const co2SelectedMonth = useAppStore((s) => s.co2SelectedMonth);
+  const co2SelectedYear = useAppStore((s) => s.co2SelectedYear);
   const industryFilter = useAppStore((s) => s.industryFilter);
   const setTheme = useAppStore((s) => s.setTheme);
   const setCo2Period = useAppStore((s) => s.setCo2Period);
+  const setCo2SelectedMonth = useAppStore((s) => s.setCo2SelectedMonth);
+  const setCo2SelectedYear = useAppStore((s) => s.setCo2SelectedYear);
   const setIndustryFilter = useAppStore((s) => s.setIndustryFilter);
   const selectedDong = useAppStore((s) => s.selectedDong);
   const setSelectedDong = useAppStore((s) => s.setSelectedDong);
@@ -38,6 +56,23 @@ export function TopBar({ onFly }: { onFly: (lon: number, lat: number) => void })
   const { data: dongData } = useSWR('/api/dongs', fetchDongs, {
     revalidateOnFocus: false,
   });
+  const { data: co2Periods } = useSWR('/api/co2-periods', fetchCo2Periods, {
+    revalidateOnFocus: false,
+  });
+  const months = useMemo(() => co2Periods?.months ?? [], [co2Periods?.months]);
+  const years = useMemo(() => co2Periods?.years ?? [], [co2Periods?.years]);
+  const hasDuplicateMonthNumbers = new Set(months.map((yyyymm) => yyyymm.slice(4, 6))).size !== months.length;
+
+  useEffect(() => {
+    const firstMonth = months[0] ?? null;
+    const firstYear = years[0] ?? null;
+    if (firstMonth && (!co2SelectedMonth || !months.includes(co2SelectedMonth))) {
+      setCo2SelectedMonth(firstMonth);
+    }
+    if (firstYear && (!co2SelectedYear || !years.includes(co2SelectedYear))) {
+      setCo2SelectedYear(firstYear);
+    }
+  }, [co2SelectedMonth, co2SelectedYear, months, years, setCo2SelectedMonth, setCo2SelectedYear]);
 
   return (
     <div className="absolute left-4 top-4 z-10 flex items-start gap-3">
@@ -90,25 +125,63 @@ export function TopBar({ onFly }: { onFly: (lon: number, lat: number) => void })
               ))}
             </div>
             {themeMode === 'co2' && (
-              <div className="mt-2 flex rounded-md bg-slate-100 p-0.5 text-[11px]" aria-label="CO2 표시 기간">
-                <button
-                  type="button"
-                  onClick={() => setCo2Period('monthly')}
-                  className={`flex-1 rounded px-2 py-0.5 ${
-                    co2Period === 'monthly' ? 'bg-white font-semibold text-slate-900 shadow-sm' : 'text-slate-600'
-                  }`}
-                >
-                  월별
-                </button>
-                <button
-                  type="button"
-                  onClick={() => setCo2Period('annual')}
-                  className={`flex-1 rounded px-2 py-0.5 ${
-                    co2Period === 'annual' ? 'bg-white font-semibold text-slate-900 shadow-sm' : 'text-slate-600'
-                  }`}
-                >
-                  연간
-                </button>
+              <div className="mt-2 space-y-1.5 text-[11px]" aria-label="CO2 표시 기간">
+                <div className="flex rounded-md bg-slate-100 p-0.5">
+                  <button
+                    type="button"
+                    onClick={() => setCo2Period('monthly')}
+                    className={`flex-1 rounded px-2 py-0.5 ${
+                      co2Period === 'monthly' ? 'bg-white font-semibold text-slate-900 shadow-sm' : 'text-slate-600'
+                    }`}
+                  >
+                    월별
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setCo2Period('annual')}
+                    className={`flex-1 rounded px-2 py-0.5 ${
+                      co2Period === 'annual' ? 'bg-white font-semibold text-slate-900 shadow-sm' : 'text-slate-600'
+                    }`}
+                  >
+                    연간
+                  </button>
+                </div>
+                {co2Period === 'monthly' && months.length > 0 && (
+                  <div className="grid max-h-24 grid-cols-3 gap-1 overflow-y-auto rounded-md bg-slate-50 p-1">
+                    {months.map((yyyymm) => (
+                      <button
+                        key={yyyymm}
+                        type="button"
+                        onClick={() => setCo2SelectedMonth(yyyymm)}
+                        className={`rounded px-1.5 py-1 ${
+                          co2SelectedMonth === yyyymm
+                            ? 'bg-slate-800 font-semibold text-white'
+                            : 'text-slate-600 hover:bg-white'
+                        }`}
+                      >
+                        {monthLabel(yyyymm, hasDuplicateMonthNumbers)}
+                      </button>
+                    ))}
+                  </div>
+                )}
+                {co2Period === 'annual' && years.length > 0 && (
+                  <div className="grid grid-cols-2 gap-1 rounded-md bg-slate-50 p-1">
+                    {years.map((year) => (
+                      <button
+                        key={year}
+                        type="button"
+                        onClick={() => setCo2SelectedYear(year)}
+                        className={`rounded px-1.5 py-1 ${
+                          co2SelectedYear === year
+                            ? 'bg-slate-800 font-semibold text-white'
+                            : 'text-slate-600 hover:bg-white'
+                        }`}
+                      >
+                        {year}년
+                      </button>
+                    ))}
+                  </div>
+                )}
               </div>
             )}
           </div>

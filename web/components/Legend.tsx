@@ -1,6 +1,6 @@
 'use client';
 
-import { legendItems, themeNote, THEME_META, type ThemeMode } from '@/lib/themes';
+import { gridLegendItems, legendItems, themeNote, THEME_META, type ThemeMode } from '@/lib/themes';
 import type { UsageUnit } from '@/lib/simulation-utils';
 
 export function Legend({
@@ -15,7 +15,8 @@ export function Legend({
   co2Period: UsageUnit;
 }) {
   const mode = zoom >= buildingMinZoom ? '건물' : '격자';
-  const items = legendItems(themeMode, co2Period);
+  const isGridMode = zoom < buildingMinZoom;
+  const items = isGridMode ? gridLegendItems(themeMode) : legendItems(themeMode, co2Period);
   const meta = THEME_META[themeMode];
   const note = themeNote(themeMode, co2Period);
 
@@ -34,7 +35,7 @@ export function Legend({
         ))}
       </div>
       <p className="mt-2 text-[10px] text-slate-400">
-        {note ? `${note} · 추정치` : '추정치 · 정성적 비교용'}
+        {note ? `${note} · ${isGridMode && themeMode === 'co2' ? '격자 내 상대분포' : '추정치'}` : '추정치 · 정성적 비교용'}
       </p>
     </div>
   );

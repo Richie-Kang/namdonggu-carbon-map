@@ -72,6 +72,7 @@ function addLayers(map: MlMap) {
   map.addSource('buildings-pmtiles', {
     type: 'vector',
     url: `pmtiles://${PMTILES_URL}/buildings.pmtiles`,
+    promoteId: 'building_id',
   });
   map.addSource('grid-pmtiles', {
     type: 'vector',
