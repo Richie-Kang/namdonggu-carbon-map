@@ -57,9 +57,7 @@ export const useAppStore = create<State & Actions>((set) => ({
   showBuildings: true,
   showGrid: true,
   showBoundary: true,
-  // reason: OSM basemap already shows streets — our overlay road lines were
-  // redundant noise on the user-supplied reference map. Default to off.
-  showRoads: false,
+  showRoads: true,
   themeMode: 'co2',
   co2Period: 'monthly',
   co2SelectedMonth: null,

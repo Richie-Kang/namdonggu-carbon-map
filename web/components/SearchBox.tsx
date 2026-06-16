@@ -75,9 +75,9 @@ export function SearchBox({ onFly }: { onFly: (lon: number, lat: number) => void
 
   return (
     <div ref={wrapRef} className="relative">
-      <div className="flex items-center gap-2 rounded-xl bg-white px-3 py-2.5 shadow-lg ring-1 ring-black/10">
+      <div className="flex items-center gap-2 rounded-xl bg-white px-4 py-3 shadow-lg ring-1 ring-black/10">
         <svg
-          className="h-4 w-4 shrink-0 text-slate-400"
+          className="h-5 w-5 shrink-0 text-slate-400"
           xmlns="http://www.w3.org/2000/svg"
           viewBox="0 0 20 20"
           fill="currentColor"
@@ -95,10 +95,10 @@ export function SearchBox({ onFly }: { onFly: (lon: number, lat: number) => void
           onFocus={() => hits.length && setOpen(true)}
           placeholder="지번 · 도로명 · 상호명 검색"
           aria-label="검색"
-          className="w-64 bg-transparent text-sm text-slate-800 placeholder:text-slate-400 focus:outline-none"
+          className="w-80 bg-transparent text-sm text-slate-800 placeholder:text-slate-400 focus:outline-none"
         />
         {loading && (
-          <div className="h-4 w-4 shrink-0 animate-spin rounded-full border-2 border-slate-200 border-t-slate-500" />
+          <div className="h-5 w-5 shrink-0 animate-spin rounded-full border-2 border-slate-200 border-t-slate-500" />
         )}
       </div>
       {open && (hits.length > 0 || loading) && (
