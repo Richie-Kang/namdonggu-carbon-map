@@ -124,8 +124,17 @@ export function TopBar({ onFly }: { onFly: (lon: number, lat: number) => void })
                 </label>
               ))}
             </div>
-            {themeMode === 'co2' && (
-              <div className="mt-2 space-y-1.5 text-[11px]" aria-label="CO2 표시 기간">
+          </div>
+
+          <div className="mx-3 h-px bg-slate-100" />
+
+          {/* 기간 */}
+          {themeMode === 'co2' && (
+            <div className="px-3 pb-2 pt-2">
+              <p className="mb-1.5 text-[11px] font-semibold uppercase tracking-widest text-slate-400">
+                기간
+              </p>
+              <div className="space-y-1.5 text-[11px]" aria-label="CO2 표시 기간">
                 <div className="flex rounded-md bg-slate-100 p-0.5">
                   <button
                     type="button"
@@ -183,8 +192,8 @@ export function TopBar({ onFly }: { onFly: (lon: number, lat: number) => void })
                   </div>
                 )}
               </div>
-            )}
-          </div>
+            </div>
+          )}
 
           <div className="mx-3 h-px bg-slate-100" />
 
