@@ -27,8 +27,10 @@ export function TopBar({ onFly }: { onFly: (lon: number, lat: number) => void })
   const showRoads = useAppStore((s) => s.showRoads);
   const toggleLayer = useAppStore((s) => s.toggleLayer);
   const themeMode = useAppStore((s) => s.themeMode);
+  const co2Period = useAppStore((s) => s.co2Period);
   const industryFilter = useAppStore((s) => s.industryFilter);
   const setTheme = useAppStore((s) => s.setTheme);
+  const setCo2Period = useAppStore((s) => s.setCo2Period);
   const setIndustryFilter = useAppStore((s) => s.setIndustryFilter);
   const selectedDong = useAppStore((s) => s.selectedDong);
   const setSelectedDong = useAppStore((s) => s.setSelectedDong);
@@ -87,6 +89,28 @@ export function TopBar({ onFly }: { onFly: (lon: number, lat: number) => void })
                 </label>
               ))}
             </div>
+            {themeMode === 'co2' && (
+              <div className="mt-2 flex rounded-md bg-slate-100 p-0.5 text-[11px]" aria-label="CO2 표시 기간">
+                <button
+                  type="button"
+                  onClick={() => setCo2Period('monthly')}
+                  className={`flex-1 rounded px-2 py-0.5 ${
+                    co2Period === 'monthly' ? 'bg-white font-semibold text-slate-900 shadow-sm' : 'text-slate-600'
+                  }`}
+                >
+                  월별
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setCo2Period('annual')}
+                  className={`flex-1 rounded px-2 py-0.5 ${
+                    co2Period === 'annual' ? 'bg-white font-semibold text-slate-900 shadow-sm' : 'text-slate-600'
+                  }`}
+                >
+                  연간
+                </button>
+              </div>
+            )}
           </div>
 
           <div className="mx-3 h-px bg-slate-100" />

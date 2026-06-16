@@ -16,6 +16,7 @@ export default function MapView() {
   const showBoundary = useAppStore((s) => s.showBoundary);
   const showRoads = useAppStore((s) => s.showRoads);
   const themeMode = useAppStore((s) => s.themeMode);
+  const co2Period = useAppStore((s) => s.co2Period);
   const industryFilter = useAppStore((s) => s.industryFilter);
   const selectedDong = useAppStore((s) => s.selectedDong);
   const { containerRef, mapRef, ready, zoom, gridFocus, setGridFocus, setPin, clearPin } =
@@ -29,9 +30,9 @@ export default function MapView() {
 
   useEffect(() => {
     if (mapRef.current && ready) {
-      applyTheme(mapRef.current, themeMode, industryFilter, selectedDong?.code ?? null);
+      applyTheme(mapRef.current, themeMode, co2Period, industryFilter, selectedDong?.code ?? null);
     }
-  }, [themeMode, industryFilter, selectedDong, ready, mapRef]);
+  }, [themeMode, co2Period, industryFilter, selectedDong, ready, mapRef]);
 
   useEffect(() => {
     if (mapRef.current && ready) {
@@ -63,7 +64,12 @@ export default function MapView() {
       )}
       <TopBar onFly={flyTo} />
       <div className="absolute bottom-4 left-4 z-10 flex items-end gap-3">
-        <Legend zoom={zoom} buildingMinZoom={MAP_CONST.BUILDING_MIN_ZOOM} themeMode={themeMode} />
+        <Legend
+          zoom={zoom}
+          buildingMinZoom={MAP_CONST.BUILDING_MIN_ZOOM}
+          themeMode={themeMode}
+          co2Period={co2Period}
+        />
         <GridFocusList gridId={gridFocus} onClose={() => setGridFocus(null)} />
       </div>
       <BuildingPanel />

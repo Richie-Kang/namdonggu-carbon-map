@@ -1,5 +1,11 @@
 import { describe, it, expect } from 'vitest';
-import { co2FromElectricity, co2FromGas, totalCo2, EMISSION_FACTORS } from '@/lib/emission-factors';
+import {
+  co2FromElectricity,
+  co2FromGas,
+  electricityKwhFromCo2,
+  totalCo2,
+  EMISSION_FACTORS,
+} from '@/lib/emission-factors';
 
 describe('emission-factors', () => {
   it('matches public factors', () => {
@@ -17,5 +23,9 @@ describe('emission-factors', () => {
 
   it('totals correctly', () => {
     expect(totalCo2({ electricity_kwh: 1000, gas_m3: 100 })).toBeCloseTo(478.1 + 217.6, 1);
+  });
+
+  it('converts CO2 back to electricity-equivalent kWh', () => {
+    expect(electricityKwhFromCo2(478.1)).toBeCloseTo(1000, 1);
   });
 });

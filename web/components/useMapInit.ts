@@ -12,6 +12,7 @@ import {
   type ThemeMode,
   type IndustryFilter,
 } from '@/lib/themes';
+import type { UsageUnit } from '@/lib/simulation-utils';
 
 const NAMDONG_CENTER: [number, number] = [126.7396, 37.4459];
 const INITIAL_ZOOM = 12;
@@ -194,11 +195,12 @@ function bindClicks(
 export function applyTheme(
   map: MlMap,
   theme: ThemeMode,
+  co2Period: UsageUnit,
   filter: IndustryFilter,
   dongCode?: string | null,
 ) {
   if (map.getLayer('buildings-fill')) {
-    map.setPaintProperty('buildings-fill', 'fill-color', buildingPaintExpr(theme));
+    map.setPaintProperty('buildings-fill', 'fill-color', buildingPaintExpr(theme, co2Period));
     const industryExpr = buildingFilterExpr(filter);
     const finalFilter = dongCode
       ? (['all', industryExpr, ['==', ['slice', ['get', 'pnu'], 0, 10], dongCode.slice(0, 10)]] as unknown as Parameters<MlMap['setFilter']>[1])
@@ -206,7 +208,7 @@ export function applyTheme(
     map.setFilter('buildings-fill', finalFilter);
   }
   if (map.getLayer('grid-fill')) {
-    map.setPaintProperty('grid-fill', 'fill-color', gridPaintExpr(theme));
+    map.setPaintProperty('grid-fill', 'fill-color', gridPaintExpr(theme, co2Period));
     map.setFilter('grid-fill', gridFilterExpr(filter));
   }
 }

@@ -1,7 +1,7 @@
 import { NextResponse, type NextRequest } from 'next/server';
 import { supabasePublic } from '@/lib/supabase';
 import { recommendActions } from '@/lib/recommendations';
-import { BuildingId, ReportResponse } from '@/lib/zod-schemas';
+import { BuildingId, ReportResponse as ReportResponseSchema, type ReportResponse } from '@/lib/zod-schemas';
 import { ENERGY_PRICE_KRW, estimateActionEconomics } from '@/lib/action-economics';
 
 export const runtime = 'nodejs';
@@ -202,6 +202,64 @@ function buildReportInput(buildingId: string, detail: BuildingDetail) {
   };
 }
 
+type ReportInput = ReturnType<typeof buildReportInput>;
+type ReportActionInput = ReportInput['rule_based_actions'][number];
+
+function formatKrw(value: number | null): string {
+  if (value == null) return '산출 불가';
+  if (value >= 100_000_000) return `${(value / 100_000_000).toFixed(1)}억원`;
+  if (value >= 10_000) return `${Math.round(value / 10_000).toLocaleString('ko-KR')}만원`;
+  return `${Math.round(value).toLocaleString('ko-KR')}원`;
+}
+
+function formatRange(value: [number, number] | null, suffix = ''): string {
+  if (!value) return '산출 불가';
+  return `${value[0].toLocaleString('ko-KR')}~${value[1].toLocaleString('ko-KR')}${suffix}`;
+}
+
+function actionWhy(action: ReportActionInput, input: ReportInput): string {
+  const industry =
+    input.factories[0]?.industry_name ??
+    input.businesses[0]?.industry_name ??
+    input.use_main ??
+    '해당 업종';
+  const saving = action.estimated_monthly_cost_saving_krw;
+  const bep = action.bep_months_range;
+  return `${industry} 특성상 ${action.description} ${action.estimated_saving_pct}% 내외 절감이 기대되며, 월 비용절감은 ${formatKrw(saving)}, 투자금 회수기간은 ${formatRange(bep, '개월')}로 추정됩니다.`;
+}
+
+function buildFallbackReport(input: ReportInput): ReportResponse {
+  const industry =
+    input.factories[0]?.industry_name ??
+    input.businesses[0]?.industry_name ??
+    input.use_main ??
+    '업종 데이터 없음';
+  const co2 = input.current_co2_kg_month != null
+    ? `${Math.round(input.current_co2_kg_month).toLocaleString('ko-KR')}kg/월`
+    : '월 배출량 미상';
+
+  return {
+    summary: `${industry} 기준으로 우선순위가 높은 절감 액션을 비용 회수 관점에서 정리했습니다. 현재 배출량은 ${co2}이며, 아래 금액과 BEP는 기본 에너지 단가와 액션별 투자비 가정으로 계산한 추정치입니다.`,
+    industry_reasoning: [
+      `${industry}에 매칭되는 룰 기반 액션을 우선 적용했습니다.`,
+      `전기 단가는 ${ENERGY_PRICE_KRW.electricity_per_kwh.toLocaleString('ko-KR')}원/kWh, 가스 단가는 ${ENERGY_PRICE_KRW.gas_per_m3.toLocaleString('ko-KR')}원/m³로 가정했습니다.`,
+    ],
+    priority_actions: input.rule_based_actions.map((action) => ({
+      title: action.title,
+      why_priority: actionWhy(action, input),
+      estimated_saving_pct: action.estimated_saving_pct,
+      estimated_monthly_cost_saving_krw: action.estimated_monthly_cost_saving_krw,
+      estimated_monthly_co2_saving_kg: action.estimated_monthly_co2_saving_kg,
+      investment_range_krw: action.investment_range_krw,
+      bep_months_range: action.bep_months_range,
+    })),
+    caveats: [
+      '실측 설비 용량, 실제 요금제, 운영시간, 시공 견적이 없으므로 비용과 BEP는 추정치입니다.',
+      '정확한 투자 판단에는 현장 진단과 공급사 견적이 필요합니다.',
+    ],
+  };
+}
+
 export async function GET(req: NextRequest) {
   const raw = req.nextUrl.searchParams.get('building_id') ?? '';
   const parsed = BuildingId.safeParse(raw);
@@ -210,13 +268,6 @@ export async function GET(req: NextRequest) {
   }
 
   const apiKey = process.env.RUNYOUR_API_KEY || process.env.OPENAI_API_KEY;
-  if (!apiKey) {
-    return NextResponse.json(
-      { error: 'report_unavailable', reason: 'missing_llm_api_key' },
-      { status: 503 }
-    );
-  }
-
   let detail: BuildingDetail | null;
   try {
     detail = await fetchBuildingDetail(parsed.data);
@@ -228,10 +279,18 @@ export async function GET(req: NextRequest) {
   }
   if (!detail) return NextResponse.json({ error: 'not_found' }, { status: 404 });
 
+  const reportInput = buildReportInput(parsed.data, detail);
+  const fallback = buildFallbackReport(reportInput);
+
+  if (!apiKey) {
+    return NextResponse.json(fallback, {
+      headers: { 'Cache-Control': 'no-store' },
+    });
+  }
+
   const baseUrl = process.env.RUNYOUR_API_BASE_URL || 'https://api.openai.com/v1';
   const model =
     process.env.RUNYOUR_MODEL || process.env.OPENAI_REPORT_MODEL || 'gpt-4o-mini';
-  const reportInput = buildReportInput(parsed.data, detail);
   const response = await fetch(`${baseUrl.replace(/\/$/, '')}/responses`, {
     method: 'POST',
     headers: {
@@ -263,29 +322,33 @@ export async function GET(req: NextRequest) {
   });
 
   if (!response.ok) {
-    const reason = (await response.text()).slice(0, 500);
-    return NextResponse.json({ error: 'report_unavailable', reason }, { status: 503 });
+    return NextResponse.json(fallback, {
+      headers: { 'Cache-Control': 'no-store' },
+    });
   }
 
   const payload: unknown = await response.json();
   const text = extractOpenAIText(payload);
   if (!text) {
-    return NextResponse.json({ error: 'report_unavailable', reason: 'empty_model_output' }, { status: 502 });
+    return NextResponse.json(fallback, {
+      headers: { 'Cache-Control': 'no-store' },
+    });
   }
 
   let json: unknown;
   try {
     json = JSON.parse(text);
   } catch {
-    return NextResponse.json({ error: 'report_unavailable', reason: 'invalid_json_output' }, { status: 502 });
+    return NextResponse.json(fallback, {
+      headers: { 'Cache-Control': 'no-store' },
+    });
   }
 
-  const report = ReportResponse.safeParse(json);
+  const report = ReportResponseSchema.safeParse(json);
   if (!report.success) {
-    return NextResponse.json(
-      { error: 'report_unavailable', reason: 'invalid_report_schema' },
-      { status: 502 }
-    );
+    return NextResponse.json(fallback, {
+      headers: { 'Cache-Control': 'no-store' },
+    });
   }
 
   return NextResponse.json(report.data, {

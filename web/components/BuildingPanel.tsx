@@ -8,7 +8,7 @@ import { ActionRecommender } from './ActionRecommender';
 import { SimulationTab } from './SimulationTab';
 import { categoryForUseCode, labelForUseCode } from '@/lib/use-codes';
 import { resolveBuildingHeight } from '@/lib/building-metrics';
-import { EMISSION_FACTORS, totalCo2 } from '@/lib/emission-factors';
+import { EMISSION_FACTORS, electricityKwhFromCo2, totalCo2 } from '@/lib/emission-factors';
 import { getIndustryMultiplier } from '@/lib/industry-factors';
 import type { ReportResponse } from '@/lib/zod-schemas';
 
@@ -234,8 +234,19 @@ function DataTab({
   const industryMultiplier = getIndustryMultiplier(industryCode);
   const avgElectricity = average(energy, 'electricity_kwh');
   const avgGas = average(energy, 'gas_m3');
-  const baseCo2 = totalCo2({ electricity_kwh: avgElectricity, gas_m3: avgGas });
-  const adjustedCo2 = baseCo2 * industryMultiplier.multiplier;
+  const currentCo2 = Number(building.co2_kg_month) || 0;
+  const measuredBaseCo2 = totalCo2({ electricity_kwh: avgElectricity, gas_m3: avgGas });
+  const hasMeasuredEnergy = avgElectricity > 0 || avgGas > 0;
+  const baseCo2 = hasMeasuredEnergy
+    ? measuredBaseCo2
+    : currentCo2 / Math.max(1, industryMultiplier.multiplier);
+  const formulaElectricity = hasMeasuredEnergy
+    ? avgElectricity
+    : electricityKwhFromCo2(baseCo2);
+  const formulaGas = hasMeasuredEnergy ? avgGas : 0;
+  const adjustedCo2 = hasMeasuredEnergy
+    ? baseCo2 * industryMultiplier.multiplier
+    : currentCo2;
   const prefix = industryPrefix(industryCode);
 
   return (
@@ -303,12 +314,17 @@ function DataTab({
                 : `${industryMultiplier.label} 보정: KSIC ${prefix ?? '미상'} 대분류 승수 ${industryMultiplier.multiplier}배를 적용합니다.`}
             </p>
             <p className="mt-1">
-              산식: 전기 {EMISSION_FACTORS.electricity.factor} kg/kWh × {nf(avgElectricity)} kWh + 가스{' '}
-              {EMISSION_FACTORS.gas_lng.factor} kg/m³ × {nf(avgGas)} m³ = {nf(baseCo2)} kg/월
+              산식: 전기 {EMISSION_FACTORS.electricity.factor} kg/kWh × {nf(formulaElectricity)} kWh + 가스{' '}
+              {EMISSION_FACTORS.gas_lng.factor} kg/m³ × {nf(formulaGas)} m³ = {nf(baseCo2)} kg/월
             </p>
             <p className="mt-1">
               업종 보정값: {nf(baseCo2)} × {industryMultiplier.multiplier} = {nf(adjustedCo2)} kg/월
             </p>
+            {!hasMeasuredEnergy && (
+              <p className="mt-1 text-slate-500">
+                월별 전기·가스 원자료가 없어 현재 CO₂를 전기 사용량으로 환산한 추정값입니다.
+              </p>
+            )}
           </div>
         )}
       </section>

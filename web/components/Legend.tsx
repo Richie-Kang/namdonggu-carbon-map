@@ -1,19 +1,23 @@
 'use client';
 
-import { legendItems, THEME_META, type ThemeMode } from '@/lib/themes';
+import { legendItems, themeNote, THEME_META, type ThemeMode } from '@/lib/themes';
+import type { UsageUnit } from '@/lib/simulation-utils';
 
 export function Legend({
   zoom,
   buildingMinZoom,
   themeMode,
+  co2Period,
 }: {
   zoom: number;
   buildingMinZoom: number;
   themeMode: ThemeMode;
+  co2Period: UsageUnit;
 }) {
   const mode = zoom >= buildingMinZoom ? '건물' : '격자';
-  const items = legendItems(themeMode);
+  const items = legendItems(themeMode, co2Period);
   const meta = THEME_META[themeMode];
+  const note = themeNote(themeMode, co2Period);
 
   return (
     <div className="rounded-xl bg-white/95 px-4 py-3 shadow-lg ring-1 ring-black/10 backdrop-blur-sm">
@@ -30,7 +34,7 @@ export function Legend({
         ))}
       </div>
       <p className="mt-2 text-[10px] text-slate-400">
-        {meta.note ? `${meta.note} · 추정치` : '추정치 · 정성적 비교용'}
+        {note ? `${note} · 추정치` : '추정치 · 정성적 비교용'}
       </p>
     </div>
   );

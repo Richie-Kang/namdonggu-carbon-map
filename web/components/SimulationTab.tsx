@@ -4,6 +4,7 @@ import { useEffect, useMemo, useState } from 'react';
 import dynamic from 'next/dynamic';
 import { useAppStore } from '@/store';
 import { USE_MAIN_CODES, LAND_USE_CATEGORIES, labelForUseCode } from '@/lib/use-codes';
+import { electricityKwhFromCo2 } from '@/lib/emission-factors';
 import {
   applyUsageDelta,
   formatUsageForUnit,
@@ -66,6 +67,10 @@ export function SimulationTab({
   const [result, setResult] = useState<PredictRes | null>(null);
   const [popBaseline, setPopBaseline] = useState<number | null>(null);
   const [popTarget, setPopTarget] = useState<number | null>(null);
+  const [modelEnergyBaseline, setModelEnergyBaseline] = useState<{
+    electricity_kwh: number;
+    gas_m3: number;
+  } | null>(null);
 
   const [usageUnit, setUsageUnit] = useState<UsageUnit>('monthly');
   const [elecDeltaPct, setElecDeltaPct] = useState(0);
@@ -85,6 +90,7 @@ export function SimulationTab({
     setResult(null);
     setPopBaseline(null);
     setPopTarget(null);
+    setModelEnergyBaseline(null);
     setUsageUnit('monthly');
     setElecDeltaPct(0);
     setGasDeltaPct(0);
@@ -116,6 +122,7 @@ export function SimulationTab({
             setResult(data);
             setPopBaseline((prev) => prev ?? data.population_baseline);
             setPopTarget((prev) => prev ?? Math.round(data.population_baseline));
+            setModelEnergyBaseline((prev) => prev ?? data.breakdown);
           } finally {
             setLoading(false);
           }
@@ -131,14 +138,21 @@ export function SimulationTab({
       ((currentBuilding.use_main_code as string | undefined) ?? '') ||
       '04000';
     const landCat = sim.land_use_category || 'commercial';
-    const targetElectricity = applyUsageDelta(current.electricity_kwh, elecDeltaPct);
-    const targetGas = applyUsageDelta(current.gas_m3, gasDeltaPct);
+    const fallbackElectricity = electricityKwhFromCo2(current.co2_kg_month);
+    const baseElectricity = current.electricity_kwh > 0
+      ? current.electricity_kwh
+      : modelEnergyBaseline?.electricity_kwh ?? fallbackElectricity;
+    const baseGas = current.gas_m3 > 0
+      ? current.gas_m3
+      : modelEnergyBaseline?.gas_m3 ?? 0;
+    const hasElectricityBase = baseElectricity > 0;
+    const hasGasBase = baseGas > 0;
     callPredict({
       use_main_code: useCode,
       land_use_category: landCat,
       target_population: popTarget ?? undefined,
-      target_electricity_kwh: targetElectricity,
-      target_gas_m3: targetGas,
+      target_electricity_kwh: hasElectricityBase ? applyUsageDelta(baseElectricity, elecDeltaPct) : undefined,
+      target_gas_m3: hasGasBase ? applyUsageDelta(baseGas, gasDeltaPct) : undefined,
       industry_code: industryCode ?? undefined,
     });
   }, [
@@ -152,6 +166,8 @@ export function SimulationTab({
     currentBuilding.use_main_code,
     current.electricity_kwh,
     current.gas_m3,
+    current.co2_kg_month,
+    modelEnergyBaseline,
   ]);
 
   const delta = result ? result.co2_pred - current.co2_kg_month : 0;
@@ -164,11 +180,24 @@ export function SimulationTab({
   const popDelta = baselineInt != null ? targetInt - baselineInt : 0;
   const sliderMax = Math.max(50, (baselineInt ?? 10) * 4);
 
-  const elecVal = applyUsageDelta(current.electricity_kwh, elecDeltaPct);
-  const gasVal = applyUsageDelta(current.gas_m3, gasDeltaPct);
+  const fallbackElectricity = electricityKwhFromCo2(current.co2_kg_month);
+  const baseElectricity = current.electricity_kwh > 0
+    ? current.electricity_kwh
+    : modelEnergyBaseline?.electricity_kwh ?? fallbackElectricity;
+  const baseGas = current.gas_m3 > 0
+    ? current.gas_m3
+    : modelEnergyBaseline?.gas_m3 ?? 0;
+  const effectiveCurrent = {
+    electricity_kwh: baseElectricity,
+    gas_m3: baseGas,
+    co2_kg_month: current.co2_kg_month,
+  };
+  const usingCo2Fallback = current.electricity_kwh <= 0 && !modelEnergyBaseline && fallbackElectricity > 0;
+  const elecVal = applyUsageDelta(baseElectricity, elecDeltaPct);
+  const gasVal = applyUsageDelta(baseGas, gasDeltaPct);
   const displayPeriod = unitSuffix(usageUnit);
-  const elecBaseDisplay = formatUsageForUnit(current.electricity_kwh, usageUnit);
-  const gasBaseDisplay = formatUsageForUnit(current.gas_m3, usageUnit);
+  const elecBaseDisplay = formatUsageForUnit(baseElectricity, usageUnit);
+  const gasBaseDisplay = formatUsageForUnit(baseGas, usageUnit);
   const elecDisplay = formatUsageForUnit(elecVal, usageUnit);
   const gasDisplay = formatUsageForUnit(gasVal, usageUnit);
 
@@ -185,9 +214,12 @@ export function SimulationTab({
           <dt className="text-slate-500">주용도</dt>
           <dd className="col-span-2">{currentLabel}</dd>
           <dt className="text-slate-500">전기/월</dt>
-          <dd className="col-span-2">{nf(current.electricity_kwh)} kWh</dd>
+          <dd className="col-span-2">
+            {nf(effectiveCurrent.electricity_kwh)} kWh
+            {usingCo2Fallback && <span className="ml-1 text-[10px] text-slate-400">(CO₂ 환산)</span>}
+          </dd>
           <dt className="text-slate-500">가스/월</dt>
-          <dd className="col-span-2">{nf(current.gas_m3)} m³</dd>
+          <dd className="col-span-2">{nf(effectiveCurrent.gas_m3)} m³</dd>
           <dt className="text-slate-500">CO₂/월</dt>
           <dd className="col-span-2 font-semibold">{nf(current.co2_kg_month)} kg</dd>
           <dt className="text-slate-500">추정 상주인구</dt>
@@ -380,7 +412,7 @@ export function SimulationTab({
 
       <section>
         <h3 className="mb-1 text-xs font-semibold uppercase tracking-wide text-slate-500">에너지 비교</h3>
-        <SimulationChart current={current} sim={result?.breakdown} />
+        <SimulationChart current={effectiveCurrent} sim={result?.breakdown} />
       </section>
     </div>
   );

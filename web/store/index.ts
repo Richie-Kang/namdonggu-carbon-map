@@ -1,5 +1,6 @@
 import { create } from 'zustand';
 import type { ThemeMode, IndustryFilter } from '@/lib/themes';
+import type { UsageUnit } from '@/lib/simulation-utils';
 
 export type SelectedBuilding = {
   building_id: string;
@@ -25,6 +26,7 @@ type State = {
   showBoundary: boolean;
   showRoads: boolean;
   themeMode: ThemeMode;
+  co2Period: UsageUnit;
   industryFilter: IndustryFilter;
   selectedDong: { name: string; code: string } | null;
 };
@@ -37,6 +39,7 @@ type Actions = {
   setColorScheme: (s: State['colorScheme']) => void;
   toggleLayer: (k: 'showBuildings' | 'showGrid' | 'showBoundary' | 'showRoads') => void;
   setTheme: (t: ThemeMode) => void;
+  setCo2Period: (p: UsageUnit) => void;
   setIndustryFilter: (f: IndustryFilter) => void;
   setSelectedDong: (d: { name: string; code: string } | null) => void;
 };
@@ -54,6 +57,7 @@ export const useAppStore = create<State & Actions>((set) => ({
   // redundant noise on the user-supplied reference map. Default to off.
   showRoads: false,
   themeMode: 'co2',
+  co2Period: 'monthly',
   industryFilter: 'all',
   selectedDong: null,
   setSelected: (b) => set({ selected: b, panelTab: 'data' }),
@@ -68,6 +72,7 @@ export const useAppStore = create<State & Actions>((set) => ({
   setColorScheme: (s) => set({ colorScheme: s }),
   toggleLayer: (k) => set((state) => ({ [k]: !state[k] } as Partial<State>)),
   setTheme: (t) => set({ themeMode: t }),
+  setCo2Period: (p) => set({ co2Period: p }),
   setIndustryFilter: (f) => set({ industryFilter: f }),
   setSelectedDong: (d) => set({ selectedDong: d }),
 }));

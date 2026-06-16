@@ -31,3 +31,8 @@ export function co2FromGas(m3: number): number {
 export function totalCo2(input: { electricity_kwh: number; gas_m3: number }): number {
   return co2FromElectricity(input.electricity_kwh) + co2FromGas(input.gas_m3);
 }
+
+export function electricityKwhFromCo2(co2Kg: number): number {
+  const co2 = Number.isFinite(co2Kg) ? Math.max(0, co2Kg) : 0;
+  return co2 / EMISSION_FACTORS.electricity.factor;
+}
