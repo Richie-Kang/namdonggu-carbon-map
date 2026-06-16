@@ -62,10 +62,10 @@ const POPULATION_COLOR: ExpressionSpecification = [
 const LAND_USE_COLOR: ExpressionSpecification = [
   'match',
   ['get', 'use_main'],
-  RESIDENTIAL_NAMES, '#3b82f6',
-  COMMERCIAL_NAMES,  '#f97316',
-  INDUSTRIAL_NAMES,  '#8b5cf6',
-  PUBLIC_NAMES,      '#10b981',
+  RESIDENTIAL_NAMES, '#FEE6C2',
+  COMMERCIAL_NAMES,  '#ED83B8',
+  INDUSTRIAL_NAMES,  '#C08484',
+  PUBLIC_NAMES,      '#F6B112',
   '#9ca3af',
 ];
 
@@ -105,10 +105,10 @@ export function buildingPaintExpr(theme: ThemeMode, period: UsageUnit = 'monthly
 const GRID_LAND_USE_COLOR: ExpressionSpecification = [
   'match',
   ['get', 'land_use_category'],
-  'residential', '#3b82f6',
-  'commercial',  '#f97316',
-  'industrial',  '#8b5cf6',
-  'public',      '#10b981',
+  'residential', '#FEE6C2',
+  'commercial',  '#ED83B8',
+  'industrial',  '#C08484',
+  'public',      '#F6B112',
   '#9ca3af',
 ];
 
@@ -164,10 +164,10 @@ const POPULATION_LEGEND: LegendItem[] = [
 ];
 
 const LAND_USE_LEGEND: LegendItem[] = [
-  { color: '#3b82f6', label: '주거' },
-  { color: '#f97316', label: '상업' },
-  { color: '#8b5cf6', label: '산업' },
-  { color: '#10b981', label: '공공' },
+  { color: '#FEE6C2', label: '주거' },
+  { color: '#ED83B8', label: '상업' },
+  { color: '#C08484', label: '산업' },
+  { color: '#F6B112', label: '공공' },
   { color: '#9ca3af', label: '기타' },
 ];
 
