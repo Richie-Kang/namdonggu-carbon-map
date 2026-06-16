@@ -51,6 +51,24 @@ function ni(n: number): string {
   return Math.round(n).toLocaleString('ko-KR');
 }
 
+function SecHeader({ children }: { children: React.ReactNode }) {
+  return (
+    <div className="mb-3 flex items-center gap-2">
+      <div className="h-4 w-1 rounded-full bg-slate-300" />
+      <h3 className="text-sm font-semibold text-slate-600">{children}</h3>
+    </div>
+  );
+}
+
+function InfoRow({ label, value }: { label: string; value: React.ReactNode }) {
+  return (
+    <div className="flex items-baseline justify-between gap-3 py-2">
+      <span className="shrink-0 text-sm text-slate-400">{label}</span>
+      <span className="text-right text-sm font-medium text-slate-800">{value}</span>
+    </div>
+  );
+}
+
 export function SimulationTab({
   buildingId,
   currentBuilding,
@@ -201,219 +219,243 @@ export function SimulationTab({
   const elecDisplay = formatUsageForUnit(elecVal, usageUnit);
   const gasDisplay = formatUsageForUnit(gasVal, usageUnit);
 
+  const resultBorderColor = delta > 0 ? 'border-red-400' : delta < 0 ? 'border-emerald-400' : 'border-slate-300';
+  const resultBadgeClass = delta > 0 ? 'bg-red-50 text-red-700' : 'bg-emerald-50 text-emerald-700';
+
   return (
-    <div className="space-y-4">
-      <section className="rounded-md bg-amber-50 px-3 py-2 text-[11px] text-amber-900 ring-1 ring-amber-200">
-        실제 데이터를 기반으로 변수를 바꿔보세요. 상주인구·전기·가스를 직접 조정해
-        예상 탄소배출량 변화를 확인할 수 있습니다.
-      </section>
+    <div className="divide-y divide-slate-100">
 
-      <section>
-        <h3 className="mb-1 text-xs font-semibold uppercase tracking-wide text-slate-500">현재 상태</h3>
-        <dl className="grid grid-cols-3 gap-y-1 text-xs">
-          <dt className="text-slate-500">주용도</dt>
-          <dd className="col-span-2">{currentLabel}</dd>
-          <dt className="text-slate-500">전기/월</dt>
-          <dd className="col-span-2">
-            {nf(effectiveCurrent.electricity_kwh)} kWh
-            {usingCo2Fallback && <span className="ml-1 text-[10px] text-slate-400">(CO₂ 환산)</span>}
-          </dd>
-          <dt className="text-slate-500">가스/월</dt>
-          <dd className="col-span-2">{nf(effectiveCurrent.gas_m3)} m³</dd>
-          <dt className="text-slate-500">CO₂/월</dt>
-          <dd className="col-span-2 font-semibold">{nf(current.co2_kg_month)} kg</dd>
-          <dt className="text-slate-500">추정 상주인구</dt>
-          <dd className="col-span-2">{baselineInt != null ? `약 ${ni(baselineInt)}명` : '계산 중…'}</dd>
-        </dl>
-      </section>
+      {/* ── 안내 ── */}
+      <div className="pb-4">
+        <p className="rounded-xl bg-amber-50 px-3 py-2.5 text-xs leading-relaxed text-amber-800 ring-1 ring-amber-100">
+          실제 데이터를 기반으로 변수를 바꿔보세요. 상주인구·전기·가스를 직접 조정해
+          예상 탄소배출량 변화를 확인할 수 있습니다.
+        </p>
+      </div>
 
-      <section className="space-y-3">
-        <div className="flex items-center justify-between gap-2">
-          <h3 className="text-xs font-semibold uppercase tracking-wide text-slate-500">변경할 변수</h3>
-          <div className="flex rounded-md bg-slate-100 p-0.5 text-[11px]" aria-label="사용량 표시 단위">
+      {/* ── 현재 상태 ── */}
+      <div className="py-4">
+        <SecHeader>현재 상태</SecHeader>
+        <div className="divide-y divide-slate-50">
+          <InfoRow label="주용도" value={currentLabel} />
+          <InfoRow
+            label="전기/월"
+            value={
+              <>
+                {nf(effectiveCurrent.electricity_kwh)} kWh
+                {usingCo2Fallback && (
+                  <span className="ml-1 text-[10px] text-slate-400">(CO₂ 환산)</span>
+                )}
+              </>
+            }
+          />
+          <InfoRow label="가스/월" value={`${nf(effectiveCurrent.gas_m3)} m³`} />
+          <InfoRow
+            label="CO₂/월"
+            value={<strong className="text-slate-900">{nf(current.co2_kg_month)} kg</strong>}
+          />
+          <InfoRow
+            label="추정 상주인구"
+            value={baselineInt != null ? `약 ${ni(baselineInt)}명` : '계산 중…'}
+          />
+        </div>
+      </div>
+
+      {/* ── 변수 조정 ── */}
+      <div className="py-4">
+        <div className="mb-3 flex items-center justify-between gap-2">
+          <div className="flex items-center gap-2">
+            <div className="h-4 w-1 rounded-full bg-slate-300" />
+            <h3 className="text-sm font-semibold text-slate-600">변수 조정</h3>
+          </div>
+          <div className="flex rounded-lg bg-slate-100 p-0.5 text-[11px]" aria-label="사용량 표시 단위">
             <button
               type="button"
               onClick={() => setUsageUnit('monthly')}
-              className={`rounded px-2 py-0.5 ${usageUnit === 'monthly' ? 'bg-white font-semibold text-slate-900 shadow-sm' : 'text-slate-600'}`}
+              className={`rounded-md px-2.5 py-0.5 transition-all ${usageUnit === 'monthly' ? 'bg-white font-semibold text-slate-900 shadow-sm' : 'text-slate-500'}`}
             >
               월
             </button>
             <button
               type="button"
               onClick={() => setUsageUnit('annual')}
-              className={`rounded px-2 py-0.5 ${usageUnit === 'annual' ? 'bg-white font-semibold text-slate-900 shadow-sm' : 'text-slate-600'}`}
+              className={`rounded-md px-2.5 py-0.5 transition-all ${usageUnit === 'annual' ? 'bg-white font-semibold text-slate-900 shadow-sm' : 'text-slate-500'}`}
             >
               연
             </button>
           </div>
         </div>
 
-        <label className="block text-xs">
-          건물 주용도
-          <select
-            className="mt-1 w-full rounded border border-slate-300 px-2 py-1 text-sm"
-            value={sim.use_main_code}
-            onChange={(e) => setSim('use_main_code', e.target.value)}
-          >
-            <option value="">— 선택 —</option>
-            {USE_MAIN_CODES.map((u) => (
-              <option key={u.code} value={u.code}>
-                {u.ko} ({u.code})
-              </option>
-            ))}
-          </select>
-        </label>
-
-        <label className="block text-xs">
-          토지용도
-          <select
-            className="mt-1 w-full rounded border border-slate-300 px-2 py-1 text-sm"
-            value={sim.land_use_category}
-            onChange={(e) => setSim('land_use_category', e.target.value)}
-          >
-            {LAND_USE_CATEGORIES.map((c) => (
-              <option key={c.value} value={c.value}>
-                {c.ko}
-              </option>
-            ))}
-          </select>
-        </label>
-
-        {/* 상주인구 슬라이더 */}
-        <label className="block text-xs">
-          상주인구: <strong>{ni(targetInt)}명</strong>
-          {baselineInt != null && (
-            <span className="ml-2 text-slate-500">
-              ({popDelta >= 0 ? '+' : ''}
-              {ni(popDelta)}명 vs 현재 {ni(baselineInt)})
-            </span>
-          )}
-          <input
-            type="range"
-            min={0}
-            max={sliderMax}
-            step={1}
-            className="mt-1 w-full"
-            disabled={baselineInt == null}
-            value={targetInt}
-            onChange={(e) => setPopTarget(Number(e.target.value))}
-          />
-          {baselineInt != null && (
-            <button
-              type="button"
-              onClick={() => setPopTarget(baselineInt)}
-              className="mt-1 text-[10px] text-slate-500 underline"
+        <div className="space-y-3">
+          {/* 건물 주용도 */}
+          <div>
+            <p className="mb-1.5 text-sm text-slate-400">건물 주용도</p>
+            <select
+              className="w-full rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm text-slate-800 focus:border-slate-400 focus:outline-none"
+              value={sim.use_main_code}
+              onChange={(e) => setSim('use_main_code', e.target.value)}
             >
-              현재 값으로 재설정
-            </button>
-          )}
-        </label>
+              <option value="">— 선택 —</option>
+              {USE_MAIN_CODES.map((u) => (
+                <option key={u.code} value={u.code}>
+                  {u.ko} ({u.code})
+                </option>
+              ))}
+            </select>
+          </div>
 
-        {/* 전기 슬라이더 */}
-        <div className="block text-xs">
-          <div className="flex items-center justify-between">
-            <span>
-              전기 사용량: <strong>{nf(elecDisplay)} kWh/{displayPeriod}</strong>
-              <span className="ml-1 text-slate-500">
-                ({elecDeltaPct >= 0 ? '+' : ''}
-                {elecDeltaPct}%)
-              </span>
-            </span>
+          {/* 토지용도 */}
+          <div>
+            <p className="mb-1.5 text-sm text-slate-400">토지용도</p>
+            <select
+              className="w-full rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm text-slate-800 focus:border-slate-400 focus:outline-none"
+              value={sim.land_use_category}
+              onChange={(e) => setSim('land_use_category', e.target.value)}
+            >
+              {LAND_USE_CATEGORIES.map((c) => (
+                <option key={c.value} value={c.value}>
+                  {c.ko}
+                </option>
+              ))}
+            </select>
+          </div>
+
+          {/* 상주인구 슬라이더 */}
+          <div className="rounded-xl bg-slate-50 px-3 py-3">
+            <div className="flex items-baseline justify-between gap-2">
+              <span className="text-sm text-slate-400">상주인구</span>
+              <strong className="text-sm font-semibold text-slate-800">{ni(targetInt)}명</strong>
+            </div>
+            {baselineInt != null && (
+              <p className="mt-0.5 text-[11px] text-slate-400">
+                현재 {ni(baselineInt)}명 대비 {popDelta >= 0 ? '+' : ''}{ni(popDelta)}명
+              </p>
+            )}
+            <input
+              type="range"
+              min={0}
+              max={sliderMax}
+              step={1}
+              className="mt-2 w-full accent-slate-700"
+              disabled={baselineInt == null}
+              value={targetInt}
+              onChange={(e) => setPopTarget(Number(e.target.value))}
+            />
+            {baselineInt != null && (
+              <button
+                type="button"
+                onClick={() => setPopTarget(baselineInt)}
+                className="mt-1.5 text-[11px] text-slate-400 underline hover:text-slate-600"
+              >
+                현재 값으로 재설정
+              </button>
+            )}
+          </div>
+
+          {/* 전기 슬라이더 */}
+          <div className="rounded-xl bg-slate-50 px-3 py-3">
+            <div className="flex items-baseline justify-between gap-2">
+              <span className="text-sm text-slate-400">전기 사용량</span>
+              <strong className="text-sm font-semibold text-slate-800">
+                {nf(elecDisplay)} kWh/{displayPeriod}
+              </strong>
+            </div>
+            <p className="mt-0.5 text-[11px] text-slate-400">
+              현재 {nf(elecBaseDisplay)} kWh/{displayPeriod} 기준
+              ({elecDeltaPct >= 0 ? '+' : ''}{elecDeltaPct}%)
+            </p>
+            <input
+              type="range"
+              min={-100}
+              max={300}
+              step={5}
+              className="mt-2 w-full accent-slate-700"
+              value={elecDeltaPct}
+              onChange={(e) => setElecDeltaPct(Number(e.target.value))}
+            />
             <button
               type="button"
               onClick={() => setElecDeltaPct(0)}
-              className="text-[10px] text-slate-500 underline"
+              className="mt-1.5 text-[11px] text-slate-400 underline hover:text-slate-600"
             >
               현재 값으로 재설정
             </button>
           </div>
-          <input
-            type="range"
-            min={-100}
-            max={300}
-            step={5}
-            className="mt-1 w-full"
-            value={elecDeltaPct}
-            onChange={(e) => setElecDeltaPct(Number(e.target.value))}
-          />
-          <div className="mt-0.5 text-[10px] text-slate-500">
-            현재 {nf(elecBaseDisplay)} kWh/{displayPeriod} 기준
-          </div>
-        </div>
 
-        {/* 가스 슬라이더 */}
-        <div className="block text-xs">
-          <div className="flex items-center justify-between">
-            <span>
-              가스 사용량: <strong>{nf(gasDisplay)} m³/{displayPeriod}</strong>
-              <span className="ml-1 text-slate-500">
-                ({gasDeltaPct >= 0 ? '+' : ''}
-                {gasDeltaPct}%)
-              </span>
-            </span>
+          {/* 가스 슬라이더 */}
+          <div className="rounded-xl bg-slate-50 px-3 py-3">
+            <div className="flex items-baseline justify-between gap-2">
+              <span className="text-sm text-slate-400">가스 사용량</span>
+              <strong className="text-sm font-semibold text-slate-800">
+                {nf(gasDisplay)} m³/{displayPeriod}
+              </strong>
+            </div>
+            <p className="mt-0.5 text-[11px] text-slate-400">
+              현재 {nf(gasBaseDisplay)} m³/{displayPeriod} 기준
+              ({gasDeltaPct >= 0 ? '+' : ''}{gasDeltaPct}%)
+            </p>
+            <input
+              type="range"
+              min={-100}
+              max={300}
+              step={5}
+              className="mt-2 w-full accent-slate-700"
+              value={gasDeltaPct}
+              onChange={(e) => setGasDeltaPct(Number(e.target.value))}
+            />
             <button
               type="button"
               onClick={() => setGasDeltaPct(0)}
-              className="text-[10px] text-slate-500 underline"
+              className="mt-1.5 text-[11px] text-slate-400 underline hover:text-slate-600"
             >
               현재 값으로 재설정
             </button>
           </div>
-          <input
-            type="range"
-            min={-100}
-            max={300}
-            step={5}
-            className="mt-1 w-full"
-            value={gasDeltaPct}
-            onChange={(e) => setGasDeltaPct(Number(e.target.value))}
-          />
-          <div className="mt-0.5 text-[10px] text-slate-500">
-            현재 {nf(gasBaseDisplay)} m³/{displayPeriod} 기준
+        </div>
+      </div>
+
+      {/* ── 업종 배출 계수 ── */}
+      {result?.industry_multiplier != null && (
+        <div className="py-4">
+          <div className="rounded-xl bg-orange-50 px-3 py-2.5 text-xs leading-relaxed text-orange-900 ring-1 ring-orange-100">
+            <strong>{result.industry_label}</strong> 업종 배출 계수{' '}
+            <strong>{result.industry_multiplier}배</strong> 적용됨 — KSIC 2자리 대분류 기준, 제조·에너지 집약 업종의 공정 배출과 에너지 집약도를 반영합니다.
           </div>
         </div>
-      </section>
-
-      {/* 업종 배출 계수 배지 */}
-      {result?.industry_multiplier != null && (
-        <section className="rounded-md bg-orange-50 px-3 py-2 text-[11px] text-orange-900 ring-1 ring-orange-200">
-          <strong>{result.industry_label}</strong> 업종 배출 계수{' '}
-          <strong>{result.industry_multiplier}배</strong> 적용됨
-          <span className="ml-1 text-orange-700">
-            KSIC 2자리 대분류 기준, 제조·에너지 집약 업종의 공정 배출과 에너지 집약도를 반영합니다.
-          </span>
-        </section>
       )}
 
-      <section>
-        <h3 className="mb-1 text-xs font-semibold uppercase tracking-wide text-slate-500">예상 결과</h3>
-        <div className="grid grid-cols-2 gap-2 rounded bg-slate-50 p-3">
-          <div>
-            <div className="text-[10px] text-slate-500">현재 CO₂</div>
-            <div className="text-base font-semibold">{nf(current.co2_kg_month)} kg</div>
+      {/* ── 예상 결과 ── */}
+      <div className="py-4">
+        <SecHeader>예상 결과</SecHeader>
+        <div className={`rounded-xl border-l-4 bg-slate-50 px-3 py-3 ${resultBorderColor}`}>
+          <p className="text-xs text-slate-400">시뮬레이션 CO₂</p>
+          <div className="mt-0.5 flex items-end justify-between gap-2">
+            <p className="text-3xl font-bold leading-none tracking-tight text-slate-800">
+              {result ? nf(result.co2_pred) : '—'}
+              <span className="ml-1.5 text-sm font-normal text-slate-400">kg/월</span>
+            </p>
+            {result && (
+              <span className={`rounded-full px-3 py-1 text-xs font-bold ${resultBadgeClass}`}>
+                {sign}{ni(delta)} kg
+              </span>
+            )}
           </div>
-          <div>
-            <div className="text-[10px] text-slate-500">시뮬 CO₂</div>
-            <div className="text-base font-semibold">{result ? nf(result.co2_pred) : '—'} kg</div>
+          <div className="mt-3 flex items-baseline justify-between border-t border-slate-200 pt-2 text-sm">
+            <span className="text-slate-400">현재 CO₂</span>
+            <span className="font-medium text-slate-700">{nf(current.co2_kg_month)} kg/월</span>
           </div>
-          <div className="col-span-2 border-t border-slate-200 pt-2">
-            <span className="text-[10px] text-slate-500">변화</span>
-            <span className={`ml-2 text-lg font-bold ${color}`}>
-              {sign}
-              {result ? ni(delta) : '—'} kg/월
-            </span>
-          </div>
+          {loading && <p className="mt-2 text-[11px] text-slate-400">계산 중…</p>}
         </div>
-        {loading && <p className="mt-1 text-[10px] text-slate-400">계산 중…</p>}
         {result?.warnings?.map((w) => (
-          <p key={w} className="mt-1 text-[10px] text-amber-700">⚠ {w}</p>
+          <p key={w} className="mt-2 text-[11px] text-amber-700">⚠ {w}</p>
         ))}
-      </section>
+      </div>
 
-      <section>
-        <h3 className="mb-1 text-xs font-semibold uppercase tracking-wide text-slate-500">에너지 비교</h3>
+      {/* ── 에너지 비교 ── */}
+      <div className="py-4">
+        <SecHeader>에너지 비교</SecHeader>
         <SimulationChart current={effectiveCurrent} sim={result?.breakdown} />
-      </section>
+      </div>
     </div>
   );
 }
