@@ -17,7 +17,7 @@ type SimInputs = { use_main_code: string; land_use_category: string; pop_delta_p
 
 type State = {
   selected: SelectedBuilding;
-  panelTab: 'data' | 'simulation';
+  panelTab: 'data' | 'simulation' | 'report';
   simInputs: SimInputs;
   simDefaultsKey: string | null;        // last building_id we synced defaults from
   colorScheme: 'jet' | 'viridis';
@@ -35,7 +35,7 @@ type State = {
 
 type Actions = {
   setSelected: (b: SelectedBuilding) => void;
-  setPanelTab: (t: State['panelTab']) => void;
+  setPanelTab: (t: 'data' | 'simulation' | 'report') => void;
   setSim: (k: keyof SimInputs, v: string | number) => void;
   resetSim: (defaults: Partial<SimInputs>, buildingKey: string) => void;
   setColorScheme: (s: State['colorScheme']) => void;

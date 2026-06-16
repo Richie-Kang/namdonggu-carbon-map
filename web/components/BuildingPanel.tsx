@@ -149,7 +149,7 @@ export function BuildingPanel() {
           role="tab"
           aria-selected={tab === 'data'}
           onClick={() => setPanelTab('data')}
-          className={`flex-1 rounded px-3 py-1 transition ${
+          className={`flex-1 rounded px-2 py-1 transition ${
             tab === 'data' ? 'bg-white shadow font-semibold text-slate-900' : 'text-slate-600'
           }`}
         >
@@ -159,11 +159,21 @@ export function BuildingPanel() {
           role="tab"
           aria-selected={tab === 'simulation'}
           onClick={() => setPanelTab('simulation')}
-          className={`flex-1 rounded px-3 py-1 transition ${
+          className={`flex-1 rounded px-2 py-1 transition ${
             tab === 'simulation' ? 'bg-white shadow font-semibold text-slate-900' : 'text-slate-600'
           }`}
         >
           시뮬레이션
+        </button>
+        <button
+          role="tab"
+          aria-selected={tab === 'report'}
+          onClick={() => setPanelTab('report')}
+          className={`flex-1 rounded px-2 py-1 transition ${
+            tab === 'report' ? 'bg-white shadow font-semibold text-slate-900' : 'text-slate-600'
+          }`}
+        >
+          AI 보고서
         </button>
       </nav>
 
@@ -195,6 +205,10 @@ export function BuildingPanel() {
               null
             }
           />
+        )}
+
+        {tab === 'report' && (
+          <AiReportSection buildingId={selected.building_id} />
         )}
       </div>
     </aside>
@@ -375,8 +389,6 @@ function DataTab({
 
       <ActionRecommender useMainCode={useMainCode ?? null} industryCode={industryCode} />
 
-      <AiReportSection buildingId={buildingId} />
-
       <footer className="border-t border-slate-200 pt-2 text-[10px] text-slate-400">
         ID {shortId(building.building_id as string)} · PNU {shortId(building.pnu as string)} ·
         {' '}데이터는 추정치, 정성적 비교용
@@ -421,7 +433,7 @@ function AiReportSection({ buildingId }: { buildingId: string }) {
   }
 
   return (
-    <section className="border-t border-slate-200 pt-3">
+    <section>
       <div className="mb-2 flex items-center justify-between gap-2">
         <h3 className="text-sm font-semibold">AI 요약 보고서</h3>
         <button
