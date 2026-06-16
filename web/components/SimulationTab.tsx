@@ -323,7 +323,7 @@ export function SimulationTab({
           {/* 상주인구 슬라이더 */}
           <div className="rounded-xl bg-slate-50 px-3 py-3">
             <div className="flex items-baseline justify-between gap-2">
-              <span className="text-sm text-slate-400">상주인구</span>
+              <span className="text-sm text-slate-600">상주인구</span>
               <strong className="text-sm font-semibold text-slate-800">{ni(targetInt)}명</strong>
             </div>
             {baselineInt != null && (
@@ -355,7 +355,7 @@ export function SimulationTab({
           {/* 전기 슬라이더 */}
           <div className="rounded-xl bg-slate-50 px-3 py-3">
             <div className="flex items-baseline justify-between gap-2">
-              <span className="text-sm text-slate-400">전기 사용량</span>
+              <span className="text-sm text-slate-600">전기 사용량</span>
               <strong className="text-sm font-semibold text-slate-800">
                 {nf(elecDisplay)} kWh/{displayPeriod}
               </strong>
@@ -385,7 +385,7 @@ export function SimulationTab({
           {/* 가스 슬라이더 */}
           <div className="rounded-xl bg-slate-50 px-3 py-3">
             <div className="flex items-baseline justify-between gap-2">
-              <span className="text-sm text-slate-400">가스 사용량</span>
+              <span className="text-sm text-slate-600">가스 사용량</span>
               <strong className="text-sm font-semibold text-slate-800">
                 {nf(gasDisplay)} m³/{displayPeriod}
               </strong>

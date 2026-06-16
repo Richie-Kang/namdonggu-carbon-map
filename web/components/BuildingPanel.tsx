@@ -129,32 +129,32 @@ export function BuildingPanel() {
   const qc = QUINTILE_COLORS[co2Quintile ?? 0] ?? DEFAULT_Q_COLOR;
 
   return (
-    <aside className="absolute right-4 top-4 bottom-4 z-10 flex w-[380px] flex-col rounded-xl bg-white shadow-2xl ring-1 ring-black/10 overflow-hidden">
+    <aside className="absolute right-4 top-4 bottom-4 z-10 flex w-[440px] flex-col rounded-xl bg-white shadow-2xl ring-1 ring-black/10 overflow-hidden">
       {/* 분위 색상 상단 바 */}
       <div className={`h-1 w-full shrink-0 ${qc.bar}`} />
 
-      <div className="flex flex-1 flex-col overflow-hidden px-4 pb-4 pt-3">
+      <div className="flex flex-1 flex-col overflow-hidden px-5 pb-4 pt-4">
         {/* 헤더 */}
-        <header className="flex items-start justify-between gap-2">
+        <header className="flex items-start justify-between gap-3">
           <div className="min-w-0">
             <h2
-              className="truncate text-[15px] font-bold leading-tight text-slate-900"
+              className="truncate text-base font-bold leading-snug text-slate-900"
               title={String(buildingName || primaryAddress)}
             >
               {buildingName || primaryAddress}
             </h2>
             {buildingName && (
-              <p className="truncate text-xs text-slate-500" title={primaryAddress}>
+              <p className="mt-0.5 truncate text-sm text-slate-500" title={primaryAddress}>
                 {primaryAddress}
               </p>
             )}
             {secondaryAddress && (
-              <p className="truncate text-[10px] text-slate-400" title={secondaryAddress}>
+              <p className="truncate text-xs text-slate-400" title={secondaryAddress}>
                 {secondaryAddress}
               </p>
             )}
             {useMain && (
-              <span className="mt-1 inline-block rounded-full bg-slate-100 px-2 py-0.5 text-[10px] text-slate-600">
+              <span className="mt-2.5 inline-block rounded-full bg-slate-100 px-2.5 py-0.5 text-xs text-slate-600">
                 {useMain}
               </span>
             )}
@@ -176,7 +176,7 @@ export function BuildingPanel() {
               role="tab"
               aria-selected={tab === t}
               onClick={() => setPanelTab(t)}
-              className={`flex-1 rounded-xl py-1.5 font-medium transition-all duration-200 ${
+              className={`flex-1 rounded-xl py-1.5 font-semibold transition-all duration-200 ${
                 tab === t
                   ? 'bg-white shadow-sm ring-1 ring-black/5 text-slate-900'
                   : 'text-slate-400 hover:text-slate-600'
