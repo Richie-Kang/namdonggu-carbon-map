@@ -31,6 +31,7 @@ type State = {
   co2SelectedYear: string | null;
   industryFilter: IndustryFilter;
   selectedDong: { name: string; code: string } | null;
+  mobileControlDrawerOpen: boolean;
 };
 
 type Actions = {
@@ -46,6 +47,7 @@ type Actions = {
   setCo2SelectedYear: (y: string | null) => void;
   setIndustryFilter: (f: IndustryFilter) => void;
   setSelectedDong: (d: { name: string; code: string } | null) => void;
+  setMobileControlDrawerOpen: (v: boolean) => void;
 };
 
 export const useAppStore = create<State & Actions>((set) => ({
@@ -64,6 +66,7 @@ export const useAppStore = create<State & Actions>((set) => ({
   co2SelectedYear: null,
   industryFilter: 'all',
   selectedDong: null,
+  mobileControlDrawerOpen: false,
   setSelected: (b) => set({ selected: b, panelTab: 'data' }),
   setPanelTab: (t) => set({ panelTab: t }),
   setSim: (k, v) =>
@@ -81,4 +84,5 @@ export const useAppStore = create<State & Actions>((set) => ({
   setCo2SelectedYear: (y) => set({ co2SelectedYear: y }),
   setIndustryFilter: (f) => set({ industryFilter: f }),
   setSelectedDong: (d) => set({ selectedDong: d }),
+  setMobileControlDrawerOpen: (v) => set({ mobileControlDrawerOpen: v }),
 }));

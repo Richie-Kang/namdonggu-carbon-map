@@ -54,16 +54,16 @@ export function GridFocusList({ gridId, onClose }: { gridId: string | null; onCl
   if (!gridId) return null;
   const rows: TopRow[] = data?.top_buildings ?? data?.rows ?? [];
   const dong = (data?.dong || '').trim();
-  const headerAddr = dong ? `인천광역시 남동구 ${dong}` : '인천광역시 남동구';
+  const headerAddr = dong ? `남동구 ${dong}` : '남동구';
   const total = data?.grid?.co2_kg_month;
   const bcount = data?.grid?.building_count;
   const landUse = data?.grid?.land_use_category;
 
   return (
-    <aside className="w-[320px] rounded-xl bg-white p-3 shadow-2xl ring-1 ring-black/10 text-sm">
+    <aside className="w-[260px] rounded-xl bg-white p-3 shadow-2xl ring-1 ring-black/10 text-sm lg:w-[320px]">
       <div className="flex items-start justify-between">
         <div className="min-w-0">
-          <div className="truncate font-semibold leading-tight" title={headerAddr}>
+          <div className="truncate font-semibold leading-tight text-sm" title={`인천광역시 ${headerAddr}`}>
             {headerAddr}
           </div>
           <div className="truncate text-[11px] text-slate-500">
@@ -90,7 +90,7 @@ export function GridFocusList({ gridId, onClose }: { gridId: string | null; onCl
         {rows.map((r) => (
           <li key={r.building_id}>
             <button
-              className="block w-full rounded px-2 py-1 text-left hover:bg-slate-50"
+              className="block w-full rounded px-2 py-1.5 text-left hover:bg-slate-50 active:bg-slate-100 lg:py-1"
               onClick={() =>
                 setSelected({
                   building_id: r.building_id,
