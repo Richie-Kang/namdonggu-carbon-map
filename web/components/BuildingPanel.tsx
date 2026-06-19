@@ -427,6 +427,11 @@ function DataTab({
         </div>
       </div>
 
+      {/* ── 탄소절감 추천 ── */}
+      <div className="py-5">
+        <ActionRecommender useMainCode={useMainCode ?? null} industryCode={industryCode} />
+      </div>
+
       {/* ── 월별 에너지 ── */}
       {energy.length > 0 && (
         <div className="py-5">
@@ -517,11 +522,6 @@ function DataTab({
           </div>
         </div>
       )}
-
-      {/* ── 탄소절감 추천 ── */}
-      <div className="py-5">
-        <ActionRecommender useMainCode={useMainCode ?? null} industryCode={industryCode} />
-      </div>
 
       {/* ── 푸터 ── */}
       <div className="pt-3 text-xs text-slate-400">
