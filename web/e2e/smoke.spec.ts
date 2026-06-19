@@ -10,8 +10,8 @@ test('legend renders quintile swatches', async ({ page }) => {
   await page.goto('/');
   // getByText(/CO₂/)는 legend item 등 다수 매칭 — label 텍스트로 한정
   await expect(page.locator('text=CO₂ 배출량').first()).toBeVisible({ timeout: 15_000 });
-  // CO2 월별 모드 기본값: themeNote → '선택 월 내 상대분포 · 추정치'
-  await expect(page.getByText('선택 월 내 상대분포 · 추정치')).toBeVisible();
+  // 초기 줌에 따라 '격자 내 상대분포' 또는 '추정치'가 붙으므로 공통 부분만 확인
+  await expect(page.locator('text=선택 월 내 상대분포').first()).toBeVisible();
 });
 
 test('layer toggles are interactive', async ({ page }) => {
