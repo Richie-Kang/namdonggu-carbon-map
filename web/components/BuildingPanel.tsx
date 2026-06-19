@@ -383,14 +383,14 @@ function DataTab({
       <div className="pb-4">
         <SectionHeader>탄소배출</SectionHeader>
         <div className={`rounded-xl border-l-4 ${qc.border} bg-slate-50 px-3 py-3`}>
-          <p className="mb-1 text-xs text-slate-500">추정 배출량</p>
+          <p className="mb-1 text-sm text-slate-500">추정 배출량</p>
           <div className="flex items-end justify-between gap-2">
-            <p className={`text-3xl font-bold leading-none tracking-tight ${qc.text}`}>
+            <p className={`text-4xl font-bold leading-none tracking-tight ${qc.text}`}>
               {nf(building.co2_kg_month as number)}
-              <span className="ml-1.5 text-sm font-normal text-slate-400">kg</span>
+              <span className="ml-1.5 text-base font-normal text-slate-400">kg</span>
             </p>
             {co2Quintile && (
-              <span className={`rounded-full px-3 py-1 text-xs font-bold ${qc.badge}`}>
+              <span className={`rounded-full px-3 py-1 text-sm font-bold ${qc.badge}`}>
                 {quintileLabel(co2Quintile)} ({co2Quintile}/5)
               </span>
             )}
@@ -406,6 +406,9 @@ function DataTab({
           </button>
           {showCarbonAdjustment && (
             <div className="mt-2 space-y-1 border-t border-slate-200 pt-2 text-xs leading-relaxed text-slate-600">
+              <p className="text-slate-400">
+                지번 단위 에너지를 연면적 비율로 안분한 뒤, 산업통상자원부 업종별 에너지 소비 통계(2022) 기반 KSIC 대분류 승수를 곱해 최종 배출량을 산정합니다.
+              </p>
               <p>
                 {industryMultiplier.multiplier === 1
                   ? '업종 보정 없음 (승수 1.0배)'
@@ -439,6 +442,11 @@ function DataTab({
           <EnergyChart data={energy.slice().reverse()} />
         </div>
       )}
+
+      {/* ── 탄소절감 추천 ── */}
+      <div className="py-5">
+        <ActionRecommender useMainCode={useMainCode ?? null} industryCode={industryCode} />
+      </div>
 
       {/* ── 건물 정보 ── */}
       <div className="py-5">

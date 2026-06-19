@@ -2,14 +2,16 @@ import { test, expect, request as pwRequest } from '@playwright/test';
 
 test('home loads and shows brand', async ({ page }) => {
   await page.goto('/');
-  await expect(page.getByText('남동구 탄소지도')).toBeVisible({ timeout: 15_000 });
+  // getByText strict 모드 위반 방지 — h1 heading으로 한정
+  await expect(page.getByRole('heading', { name: '남동구 탄소지도' })).toBeVisible({ timeout: 15_000 });
 });
 
 test('legend renders quintile swatches', async ({ page }) => {
   await page.goto('/');
   // getByText(/CO₂/)는 legend item 등 다수 매칭 — label 텍스트로 한정
   await expect(page.locator('text=CO₂ 배출량').first()).toBeVisible({ timeout: 15_000 });
-  await expect(page.getByText('추정치 · 정성적 비교용')).toBeVisible();
+  // 초기 줌에 따라 '격자 내 상대분포' 또는 '추정치'가 붙으므로 공통 부분만 확인
+  await expect(page.locator('text=선택 월 내 상대분포').first()).toBeVisible();
 });
 
 test('layer toggles are interactive', async ({ page }) => {
