@@ -2,7 +2,7 @@
 
 import useSWR from 'swr';
 import dynamic from 'next/dynamic';
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useRef, useState, type ReactNode, type TouchEvent } from 'react';
 import { useAppStore } from '@/store';
 import { ActionRecommender } from './ActionRecommender';
 import { SimulationTab } from './SimulationTab';
@@ -70,7 +70,6 @@ function shortId(id: string | undefined | null): string {
   return `${s.slice(0, 4)}…${s.slice(-4)}`;
 }
 
-// CO₂ 분위(1-5) → 색상 토큰 매핑
 const QUINTILE_COLORS: Record<number, { bar: string; border: string; text: string; badge: string }> = {
   1: { bar: 'bg-emerald-500', border: 'border-emerald-400', text: 'text-emerald-700', badge: 'bg-emerald-50 text-emerald-700' },
   2: { bar: 'bg-lime-500',    border: 'border-lime-400',    text: 'text-lime-700',    badge: 'bg-lime-50 text-lime-700' },
@@ -83,6 +82,63 @@ const DEFAULT_Q_COLOR = { bar: 'bg-slate-300', border: 'border-slate-300', text:
 function quintileLabel(q: number | null | undefined): string {
   if (!q) return '—';
   return ['최저', '낮음', '중간', '높음', '최고'][q - 1] ?? '—';
+}
+
+// 모바일 bottom sheet 스냅 포인트 (dvh 기준)
+const SNAP_PEEK = 28;    // 핸들+헤더+탭만 보이는 상태
+const SNAP_HALF = 55;    // 절반 열린 상태
+const SNAP_FULL = 92;    // 거의 전체 열린 상태
+
+function MobileSheet({
+  children,
+  onClose,
+}: {
+  children: ReactNode;
+  onClose: () => void;
+}) {
+  const [snapPct, setSnapPct] = useState(SNAP_HALF);
+  const sheetRef = useRef<HTMLDivElement>(null);
+  const startY = useRef(0);
+  const startSnap = useRef(SNAP_HALF);
+
+  function onTouchStart(e: TouchEvent) {
+    startY.current = e.touches[0]?.clientY ?? 0;
+    startSnap.current = snapPct;
+  }
+
+  function onTouchEnd(e: TouchEvent) {
+    const dy = startY.current - (e.changedTouches[0]?.clientY ?? startY.current);
+    const dvh = window.innerHeight / 100;
+    const deltaPct = dy / dvh;
+    const next = startSnap.current + deltaPct;
+
+    if (next < 15) {
+      onClose();
+      return;
+    }
+    // 가장 가까운 스냅 포인트로
+    const snaps = [SNAP_PEEK, SNAP_HALF, SNAP_FULL];
+    const closest = snaps.reduce((a, b) => (Math.abs(b - next) < Math.abs(a - next) ? b : a));
+    setSnapPct(closest);
+  }
+
+  return (
+    <div
+      ref={sheetRef}
+      className="fixed bottom-0 left-0 right-0 z-40 flex flex-col overflow-hidden rounded-t-2xl bg-white shadow-2xl transition-[height] duration-300 ease-out"
+      style={{ height: `${snapPct}dvh` }}
+    >
+      {/* 드래그 핸들 영역 */}
+      <div
+        className="shrink-0 cursor-grab touch-none select-none px-4 pb-2 pt-3 active:cursor-grabbing"
+        onTouchStart={onTouchStart}
+        onTouchEnd={onTouchEnd}
+      >
+        <div className="mx-auto h-1 w-10 rounded-full bg-slate-200" />
+      </div>
+      {children}
+    </div>
+  );
 }
 
 export function BuildingPanel() {
@@ -106,14 +162,11 @@ export function BuildingPanel() {
   useEffect(() => {
     if (!selected) return;
     if (!data?.building) return;
-    // reason: fall back to 제2종근린생활시설 when the source data has no
-    // use_main_code — otherwise the simulator silently never fires.
     const code = ((b.use_main_code as string | undefined) || '').trim() || '04000';
     resetSim(
       { use_main_code: code, land_use_category: categoryForUseCode(code), pop_delta_pct: 0 },
       selected.building_id
     );
-    // reason: only re-sync when the selection identity changes
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [selected?.building_id, data?.building]);
 
@@ -128,8 +181,8 @@ export function BuildingPanel() {
   const co2Quintile = (b.co2_quintile as number | null | undefined) ?? selected.co2_quintile;
   const qc = QUINTILE_COLORS[co2Quintile ?? 0] ?? DEFAULT_Q_COLOR;
 
-  return (
-    <aside className="absolute right-4 top-4 bottom-4 z-10 flex w-[440px] flex-col rounded-xl bg-white shadow-2xl ring-1 ring-black/10 overflow-hidden">
+  const panelContent = (
+    <>
       {/* 분위 색상 상단 바 */}
       <div className={`h-1 w-full shrink-0 ${qc.bar}`} />
 
@@ -233,11 +286,34 @@ export function BuildingPanel() {
           )}
         </div>
       </div>
-    </aside>
+    </>
+  );
+
+  return (
+    <>
+      {/* 데스크탑: 우측 고정 패널 */}
+      <aside className="absolute right-4 top-4 bottom-4 z-10 hidden w-[440px] flex-col rounded-xl bg-white shadow-2xl ring-1 ring-black/10 overflow-hidden lg:flex">
+        {panelContent}
+      </aside>
+
+      {/* 모바일: bottom sheet */}
+      <div className="lg:hidden">
+        <MobileSheet onClose={() => setSelected(null)}>
+          <div className="flex flex-1 flex-col overflow-hidden">
+            {panelContent}
+          </div>
+        </MobileSheet>
+        {/* 딤 오버레이 (터치로 닫기) */}
+        <div
+          className="fixed inset-0 z-30 bg-black/20"
+          onClick={() => setSelected(null)}
+        />
+      </div>
+    </>
   );
 }
 
-function SectionHeader({ children }: { children: React.ReactNode }) {
+function SectionHeader({ children }: { children: ReactNode }) {
   return (
     <div className="mb-3 flex items-center gap-2">
       <div className="h-4 w-1 rounded-full bg-slate-300" />
@@ -246,7 +322,7 @@ function SectionHeader({ children }: { children: React.ReactNode }) {
   );
 }
 
-function InfoRow({ label, value }: { label: string; value: React.ReactNode }) {
+function InfoRow({ label, value }: { label: string; value: ReactNode }) {
   return (
     <div className="flex items-baseline justify-between gap-3 py-2">
       <span className="shrink-0 text-sm text-slate-400">{label}</span>
@@ -320,7 +396,6 @@ function DataTab({
             )}
           </div>
 
-          {/* 업종 보정 토글 */}
           <button
             type="button"
             onClick={() => setShowCarbonAdjustment((v) => !v)}
@@ -352,6 +427,11 @@ function DataTab({
         </div>
       </div>
 
+      {/* ── 탄소절감 추천 ── */}
+      <div className="py-5">
+        <ActionRecommender useMainCode={useMainCode ?? null} industryCode={industryCode} />
+      </div>
+
       {/* ── 월별 에너지 ── */}
       {energy.length > 0 && (
         <div className="py-5">
@@ -373,7 +453,7 @@ function DataTab({
           />
           <InfoRow
             label="상주인구 (예측)"
-            value={popPred != null ? `약 ${ni(Number(popPred), '명')}`  : '—'}
+            value={popPred != null ? `약 ${ni(Number(popPred), '명')}` : '—'}
           />
           {showMore && (
             <>
@@ -442,11 +522,6 @@ function DataTab({
           </div>
         </div>
       )}
-
-      {/* ── 탄소절감 추천 ── */}
-      <div className="py-5">
-        <ActionRecommender useMainCode={useMainCode ?? null} industryCode={industryCode} />
-      </div>
 
       {/* ── 푸터 ── */}
       <div className="pt-3 text-xs text-slate-400">

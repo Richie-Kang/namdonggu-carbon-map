@@ -15,7 +15,7 @@ const config: Config = {
         },
       },
       fontFamily: {
-        sans: ['system-ui', 'sans-serif'],
+        sans: ['Pretendard Variable', 'Pretendard', 'system-ui', 'sans-serif'],
       },
     },
   },

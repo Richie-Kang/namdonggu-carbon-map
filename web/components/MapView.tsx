@@ -114,7 +114,11 @@ export default function MapView() {
         </div>
       )}
       <TopBar onFly={flyTo} />
-      <div className="absolute bottom-4 left-4 z-10 flex items-end gap-3">
+
+      {/* 범례 + 격자 포커스 — 모바일에서는 더 위로, 선택된 건물 없을 때만 하단 공간 사용 */}
+      <div className={`absolute left-3 z-10 flex items-end gap-2 lg:left-4 lg:bottom-4 lg:gap-3 ${
+        selected ? 'bottom-4' : 'bottom-4'
+      }`}>
         <Legend
           zoom={zoom}
           buildingMinZoom={MAP_CONST.BUILDING_MIN_ZOOM}
@@ -123,6 +127,7 @@ export default function MapView() {
         />
         <GridFocusList gridId={gridFocus} onClose={() => setGridFocus(null)} />
       </div>
+
       <BuildingPanel />
       {!MAP_CONST.PMTILES_URL && (
         <div className="absolute bottom-4 left-1/2 -translate-x-1/2 rounded-lg bg-amber-50 border border-amber-200 px-4 py-2 text-sm text-amber-900 shadow">
