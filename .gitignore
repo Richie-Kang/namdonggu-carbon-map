@@ -72,3 +72,8 @@ test-results/
 
 # Vercel
 .vercel
+
+# Playwright MCP 임시 파일
+.playwright-mcp/
+*.png
+*.jpeg
