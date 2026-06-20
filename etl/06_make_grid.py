@@ -75,6 +75,30 @@ def main() -> int:
                 from pop
                 where g.grid_id = pop.grid_id;
             """)
+            # 다사메트릭 배분: grid_pop_100m 인구를 건물 연면적 비율로 buildings에 배분.
+            cur.execute("""
+                with grid_floor as (
+                    select gp.grid_cd,
+                           sum(coalesce(b.floor_area_ratio, 1)) as total_floor
+                    from grid_pop_100m gp
+                    join buildings b on st_intersects(b.geom, gp.geom)
+                    group by gp.grid_cd
+                ),
+                bld_pop as (
+                    select b.building_id,
+                           sum(coalesce(gp.population, 0) *
+                               coalesce(b.floor_area_ratio, 1) /
+                               nullif(gf.total_floor, 0)) as pop
+                    from buildings b
+                    join grid_pop_100m gp on st_intersects(b.geom, gp.geom)
+                    join grid_floor gf on gf.grid_cd = gp.grid_cd
+                    group by b.building_id
+                )
+                update buildings b
+                set population_pred = bp.pop
+                from bld_pop bp
+                where b.building_id = bp.building_id;
+            """)
 
             cur.execute("""
                 with q as (
