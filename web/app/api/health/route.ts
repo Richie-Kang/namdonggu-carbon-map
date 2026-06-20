@@ -46,16 +46,8 @@ async function checkModel(): Promise<Health['model']> {
 async function checkTiles(): Promise<Health['tiles']> {
   const tilesUrl = process.env.NEXT_PUBLIC_PMTILES_URL || '/tiles';
   if (!tilesUrl) return 'unconfigured';
-  if (tilesUrl.startsWith('/')) {
-    try {
-      const fs = await import('node:fs/promises');
-      const path = await import('node:path');
-      await fs.access(path.join(process.cwd(), 'public', tilesUrl, 'buildings.pmtiles'));
-      return 'ok';
-    } catch {
-      return 'fail';
-    }
-  }
+  // Vercel serves public assets outside the serverless function filesystem.
+  if (tilesUrl.startsWith('/')) return 'ok';
   return 'ok';
 }
 
