@@ -443,11 +443,6 @@ function DataTab({
         </div>
       )}
 
-      {/* ── 탄소절감 추천 ── */}
-      <div className="py-5">
-        <ActionRecommender useMainCode={useMainCode ?? null} industryCode={industryCode} />
-      </div>
-
       {/* ── 건물 정보 ── */}
       <div className="py-5">
         <SectionHeader>건물 정보</SectionHeader>
