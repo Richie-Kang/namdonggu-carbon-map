@@ -1,5 +1,5 @@
 import { NextResponse } from 'next/server';
-import { supabaseAdmin } from '@/lib/supabase';
+import { configuredSupabaseUrl, supabaseAdmin } from '@/lib/supabase';
 
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
@@ -13,7 +13,7 @@ type Health = {
 };
 
 async function checkDb(): Promise<Health['db']> {
-  if (!process.env.NEXT_PUBLIC_SUPABASE_URL) return 'unconfigured';
+  if (!configuredSupabaseUrl()) return 'unconfigured';
   // reason: stub or unreachable URLs should not hang the health check.
   const timeoutMs = 1500;
   try {
@@ -44,7 +44,18 @@ async function checkModel(): Promise<Health['model']> {
 }
 
 async function checkTiles(): Promise<Health['tiles']> {
-  if (!process.env.NEXT_PUBLIC_PMTILES_URL) return 'unconfigured';
+  const tilesUrl = process.env.NEXT_PUBLIC_PMTILES_URL || '/tiles';
+  if (!tilesUrl) return 'unconfigured';
+  if (tilesUrl.startsWith('/')) {
+    try {
+      const fs = await import('node:fs/promises');
+      const path = await import('node:path');
+      await fs.access(path.join(process.cwd(), 'public', tilesUrl, 'buildings.pmtiles'));
+      return 'ok';
+    } catch {
+      return 'fail';
+    }
+  }
   return 'ok';
 }
 
@@ -54,7 +65,7 @@ export async function GET() {
     db,
     model,
     tiles,
-    version: process.env.NEXT_PUBLIC_APP_VERSION ?? '0.0.0',
+    version: process.env.NEXT_PUBLIC_APP_VERSION || '0.1.0',
     checked_at: new Date().toISOString(),
   };
   const overallOk = db !== 'fail' && model !== 'fail' && tiles !== 'fail';
