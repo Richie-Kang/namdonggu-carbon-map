@@ -19,7 +19,7 @@ PROJECT_ROOT = Path(__file__).resolve().parents[1]
 DATA_ROOT_ENV = os.getenv("NAMDONGGU_DATA_ROOT")
 DEFAULT_DATA_ROOT = Path(
     DATA_ROOT_ENV
-    or "/Users/rich/Documents/탄소지도 시뮬레이션 데이터 모음_26.05.26 강우석"
+    or (PROJECT_ROOT / "data")
 )
 
 load_dotenv(PROJECT_ROOT / ".env.local")
