@@ -1,15 +1,23 @@
 'use client';
 
-import { recommendActions } from '@/lib/recommendations';
+import type { ActionEconomicsInput } from '@/lib/action-economics';
+import { recommendActionsForIndustryCodes } from '@/lib/recommendations';
+import { ActionEngagement } from './ActionEngagement';
 
 export function ActionRecommender({
   useMainCode,
   industryCode,
+  industryCodes,
+  building,
+  energyInput,
 }: {
   useMainCode: string | null;
   industryCode: string | null;
+  industryCodes?: Array<string | null | undefined>;
+  building?: Record<string, unknown>;
+  energyInput?: ActionEconomicsInput;
 }) {
-  const actions = recommendActions(useMainCode, industryCode);
+  const actions = recommendActionsForIndustryCodes(useMainCode, industryCodes ?? [industryCode]);
   return (
     <div className="mt-4">
       <div className="mb-3 flex items-center gap-2">
@@ -21,11 +29,14 @@ export function ActionRecommender({
           <li key={a.id} className="rounded border border-slate-200 p-2">
             <div className="flex items-center justify-between">
               <strong className="text-sm">{a.title}</strong>
-              <span className="rounded bg-emerald-100 px-2 py-0.5 text-[10px] text-emerald-800">
-                ~{a.estimated_saving_pct}% 절감
-              </span>
+              {a.estimated_saving_pct != null && (
+                <span className="rounded bg-emerald-100 px-2 py-0.5 text-[10px] text-emerald-800">
+                  ~{a.estimated_saving_pct}% 절감
+                </span>
+              )}
             </div>
             <p className="mt-1 text-xs text-slate-600">{a.description}</p>
+            <ActionEngagement action={a} building={building} energyInput={energyInput} />
           </li>
         ))}
         {actions.length === 0 && (

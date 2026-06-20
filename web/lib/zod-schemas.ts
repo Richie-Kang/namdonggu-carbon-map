@@ -52,6 +52,7 @@ export const PredictResponse = z.object({
 export type PredictResponse = z.infer<typeof PredictResponse>;
 
 export const ReportAction = z.object({
+  action_id: z.string().nullable().optional(),
   title: z.string(),
   why_priority: z.string(),
   estimated_saving_pct: z.number().nullable(),
@@ -59,6 +60,7 @@ export const ReportAction = z.object({
   estimated_monthly_co2_saving_kg: z.number().nullable(),
   investment_range_krw: z.tuple([z.number(), z.number()]).nullable(),
   bep_months_range: z.tuple([z.number(), z.number()]).nullable(),
+  estimate_note: z.string().nullable().optional(),
 });
 
 export const ReportResponse = z.object({

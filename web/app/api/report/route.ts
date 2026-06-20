@@ -1,6 +1,6 @@
 import { NextResponse, type NextRequest } from 'next/server';
 import { supabasePublic } from '@/lib/supabase';
-import { recommendActions } from '@/lib/recommendations';
+import { recommendActionsForIndustryCodes } from '@/lib/recommendations';
 import { BuildingId, ReportResponse as ReportResponseSchema, type ReportResponse } from '@/lib/zod-schemas';
 import { ENERGY_PRICE_KRW, estimateActionEconomics } from '@/lib/action-economics';
 import { electricityKwhFromCo2 } from '@/lib/emission-factors';
@@ -54,6 +54,7 @@ const REPORT_SCHEMA = {
         type: 'object',
         additionalProperties: false,
         required: [
+          'action_id',
           'title',
           'why_priority',
           'estimated_saving_pct',
@@ -61,8 +62,10 @@ const REPORT_SCHEMA = {
           'estimated_monthly_co2_saving_kg',
           'investment_range_krw',
           'bep_months_range',
+          'estimate_note',
         ],
         properties: {
+          action_id: { type: 'string' },
           title: { type: 'string' },
           why_priority: { type: 'string' },
           estimated_saving_pct: { type: ['number', 'null'] },
@@ -90,6 +93,7 @@ const REPORT_SCHEMA = {
               },
             ],
           },
+          estimate_note: { type: ['string', 'null'] },
         },
       },
     },
@@ -170,11 +174,19 @@ function buildReportInput(buildingId: string, detail: BuildingDetail) {
     gas_m3_month: gasMonth,
     co2_kg_month: co2Month,
   };
-  const actions = recommendActions(useMainCode, industryCode).map((action) => ({
+  const industryCodes = [
+    ...factories.map((factory) => factory.industry_code),
+    ...businesses.map((business) => business.industry_code),
+  ];
+  const actions = recommendActionsForIndustryCodes(useMainCode, industryCodes).map((action) => ({
+    id: action.id,
     title: action.title,
     description: action.description,
     estimated_saving_pct: action.estimated_saving_pct,
-    ...estimateActionEconomics(action, currentEnergy),
+    ...estimateActionEconomics(action, currentEnergy, {
+      area_total: building.area_total,
+      floors_above: building.floors_above,
+    }),
   }));
 
   return {
@@ -210,15 +222,25 @@ type ReportInput = ReturnType<typeof buildReportInput>;
 type ReportActionInput = ReportInput['rule_based_actions'][number];
 
 function formatKrw(value: number | null): string {
-  if (value == null) return '산출 불가';
+  if (value == null) return '예상치 없음';
   if (value >= 100_000_000) return `${(value / 100_000_000).toFixed(1)}억원`;
   if (value >= 10_000) return `${Math.round(value / 10_000).toLocaleString('ko-KR')}만원`;
   return `${Math.round(value).toLocaleString('ko-KR')}원`;
 }
 
 function formatRange(value: [number, number] | null, suffix = ''): string {
-  if (!value) return '산출 불가';
+  if (!value) return '예상치 없음';
+  if (value[0] === value[1]) return `${value[0].toLocaleString('ko-KR')}${suffix}`;
   return `${value[0].toLocaleString('ko-KR')}~${value[1].toLocaleString('ko-KR')}${suffix}`;
+}
+
+function formatBepYears(value: [number, number] | null): string {
+  if (!value) return '예상치 없음';
+  const toYears = (months: number) => Math.round((months / 12) * 10) / 10;
+  const low = toYears(value[0]);
+  const high = toYears(value[1]);
+  if (low === high) return `약 ${low.toLocaleString('ko-KR')}년`;
+  return `약 ${low.toLocaleString('ko-KR')}~${high.toLocaleString('ko-KR')}년`;
 }
 
 function actionWhy(action: ReportActionInput, input: ReportInput): string {
@@ -229,7 +251,15 @@ function actionWhy(action: ReportActionInput, input: ReportInput): string {
     '해당 업종';
   const saving = action.estimated_monthly_cost_saving_krw;
   const bep = action.bep_months_range;
-  return `${industry} 특성상 ${action.description} ${action.estimated_saving_pct}% 내외 절감이 기대되며, 월 비용절감은 ${formatKrw(saving)}, 투자금 회수기간은 ${formatRange(bep, '개월')}로 추정됩니다.`;
+  if (action.id === 'rooftop_solar') {
+    const annualValue = saving != null ? saving * 12 : null;
+    const investment = action.investment_range_krw?.[0] ?? null;
+    return `${industry} 건물의 추정 옥상면적을 기준으로 ${action.description} 예상 설치비는 ${formatKrw(investment)}, 연간 생산·판매 가치는 ${formatKrw(annualValue)}, 회수기간은 ${formatBepYears(bep)}로 추정됩니다.`;
+  }
+  if (action.investment_range_krw && !saving && !bep) {
+    return `${industry} 기준 ${action.description} 예상 투자비는 ${formatRange(action.investment_range_krw, '원')}입니다. ${action.estimate_note ?? ''}`.trim();
+  }
+  return `${industry} 특성상 ${action.description} ${action.estimated_saving_pct}% 내외 절감이 기대되며, 월 비용절감은 ${formatKrw(saving)}, 투자금 회수기간은 ${formatBepYears(bep)}로 추정됩니다.`;
 }
 
 function buildFallbackReport(input: ReportInput): ReportResponse {
@@ -249,6 +279,7 @@ function buildFallbackReport(input: ReportInput): ReportResponse {
       `전기 단가는 ${ENERGY_PRICE_KRW.electricity_per_kwh.toLocaleString('ko-KR')}원/kWh, 가스 단가는 ${ENERGY_PRICE_KRW.gas_per_m3.toLocaleString('ko-KR')}원/m³로 가정했습니다.`,
     ],
     priority_actions: input.rule_based_actions.map((action) => ({
+      action_id: action.id,
       title: action.title,
       why_priority: actionWhy(action, input),
       estimated_saving_pct: action.estimated_saving_pct,
@@ -256,10 +287,11 @@ function buildFallbackReport(input: ReportInput): ReportResponse {
       estimated_monthly_co2_saving_kg: action.estimated_monthly_co2_saving_kg,
       investment_range_krw: action.investment_range_krw,
       bep_months_range: action.bep_months_range,
+      estimate_note: action.estimate_note,
     })),
     caveats: [
-      '실측 설비 용량, 실제 요금제, 운영시간, 시공 견적이 없으므로 비용과 BEP는 추정치입니다.',
-      '정확한 투자 판단에는 현장 진단과 공급사 견적이 필요합니다.',
+      '실측 설비 용량, 실제 요금제, 운영시간, 시공 견적에 따라 비용과 BEP는 달라질 수 있습니다.',
+      '표시된 금액은 건물 면적과 월 에너지 사용량을 기반으로 한 예측 범위입니다.',
     ],
   };
 }
@@ -308,7 +340,10 @@ export async function GET(req: NextRequest) {
         '제공된 JSON 데이터만 근거로 한국어 요약 보고서를 작성한다.',
         '면적, 층수 같은 기본 속성 요약은 쓰지 말고 업종과 에너지 사용 특성에 집중한다.',
         '우선 액션은 업종에 기반해 왜 먼저 해야 하는지, 월 비용 절감, 월 탄소 절감, BEP를 중심으로 설명한다.',
+        '각 우선 액션의 action_id는 입력 JSON rule_based_actions의 id 값을 그대로 복사한다.',
         '비용, 절감률, BEP는 입력 JSON의 rule_based_actions 값만 사용하고 새 값을 지어내지 않는다.',
+        'investment_range_krw 또는 bep_months_range가 null이면 입력 JSON에 없는 금액을 새로 만들지 않는다.',
+        'estimate_note는 입력 JSON rule_based_actions의 estimate_note 값을 그대로 복사한다.',
         '모든 비용과 절감량은 추정치이며 단가 가정을 사용했다는 점을 caveats에 명시한다.',
       ].join('\n'),
       input: JSON.stringify(reportInput),

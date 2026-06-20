@@ -5,11 +5,13 @@ import dynamic from 'next/dynamic';
 import { useEffect, useMemo, useRef, useState, type ReactNode, type TouchEvent } from 'react';
 import { useAppStore } from '@/store';
 import { ActionRecommender } from './ActionRecommender';
+import { ActionEngagement } from './ActionEngagement';
 import { SimulationTab } from './SimulationTab';
 import { categoryForUseCode, labelForUseCode } from '@/lib/use-codes';
 import { resolveBuildingHeight } from '@/lib/building-metrics';
 import { EMISSION_FACTORS, electricityKwhFromCo2, totalCo2 } from '@/lib/emission-factors';
 import { getIndustryMultiplier } from '@/lib/industry-factors';
+import { findActionById, findActionByTitle } from '@/lib/recommendations';
 import type { ReportResponse } from '@/lib/zod-schemas';
 
 const EnergyChart = dynamic(() => import('./EnergyChart').then((m) => m.EnergyChart), {
@@ -49,6 +51,15 @@ function krw(n: number | undefined | null): string {
   if (n >= 100_000_000) return `${(n / 100_000_000).toLocaleString('ko-KR', { maximumFractionDigits: 1 })}억원`;
   if (n >= 10_000) return `${Math.round(n / 10_000).toLocaleString('ko-KR')}만원`;
   return `${Math.round(n).toLocaleString('ko-KR')}원`;
+}
+
+function bepYears(value: [number, number] | null | undefined): string {
+  if (!value) return '예상치 없음';
+  const toYears = (months: number) => Math.round((months / 12) * 10) / 10;
+  const low = toYears(value[0]);
+  const high = toYears(value[1]);
+  if (low === high) return `약 ${low.toLocaleString('ko-KR')}년`;
+  return `약 ${low.toLocaleString('ko-KR')}~${high.toLocaleString('ko-KR')}년`;
 }
 
 function average(rows: EnergyRow[], key: keyof EnergyRow): number {
@@ -282,7 +293,7 @@ export function BuildingPanel() {
           )}
 
           {tab === 'report' && (
-            <AiReportSection buildingId={selected.building_id} />
+            <AiReportSection buildingId={selected.building_id} building={b} />
           )}
         </div>
       </div>
@@ -358,6 +369,10 @@ function DataTab({
   const [showCarbonAdjustment, setShowCarbonAdjustment] = useState(false);
   const useMainCode = building.use_main_code as string | undefined;
   const industryCode = factories[0]?.industry_code ?? businesses[0]?.industry_code ?? null;
+  const industryCodes = [
+    ...factories.map((factory) => factory.industry_code),
+    ...businesses.map((business) => business.industry_code),
+  ];
   const industry = factories[0]?.industry_name ?? businesses[0]?.industry_name ?? null;
 
   const approvedAt = building.approved_at as string | undefined | null;
@@ -432,7 +447,17 @@ function DataTab({
 
       {/* ── 탄소절감 추천 ── */}
       <div className="py-5">
-        <ActionRecommender useMainCode={useMainCode ?? null} industryCode={industryCode} />
+        <ActionRecommender
+          useMainCode={useMainCode ?? null}
+          industryCode={industryCode}
+          industryCodes={industryCodes}
+          building={building}
+          energyInput={{
+            electricity_kwh_month: hasMeasuredEnergy ? avgElectricity : null,
+            gas_m3_month: hasMeasuredEnergy ? avgGas : null,
+            co2_kg_month: currentCo2 > 0 ? currentCo2 : null,
+          }}
+        />
       </div>
 
       {/* ── 월별 에너지 ── */}
@@ -534,7 +559,13 @@ function DataTab({
   );
 }
 
-function AiReportSection({ buildingId }: { buildingId: string }) {
+function AiReportSection({
+  buildingId,
+  building,
+}: {
+  buildingId: string;
+  building: Record<string, unknown>;
+}) {
   const [status, setStatus] = useState<'idle' | 'loading' | 'success' | 'error'>('idle');
   const [report, setReport] = useState<ReportResponse | null>(null);
   const [error, setError] = useState<string | null>(null);
@@ -620,39 +651,41 @@ function AiReportSection({ buildingId }: { buildingId: string }) {
           <div className="py-4">
             <SectionHeader>우선 액션</SectionHeader>
             <ul className="space-y-3">
-              {report.priority_actions.map((action) => (
-                <li key={`${action.title}-${action.why_priority}`} className="rounded-xl border border-slate-100 bg-slate-50 p-3">
-                  <div className="flex items-start justify-between gap-2">
-                    <strong className="text-sm font-semibold text-slate-900">{action.title}</strong>
-                    {action.estimated_saving_pct != null && (
-                      <span className="shrink-0 rounded-full bg-emerald-50 px-2.5 py-0.5 text-xs font-bold text-emerald-700">
-                        ~{action.estimated_saving_pct}%
-                      </span>
-                    )}
-                  </div>
-                  <p className="mt-1.5 text-sm text-slate-500">{action.why_priority}</p>
-                  <div className="mt-2 divide-y divide-slate-100 border-t border-slate-200 pt-1">
-                    <InfoRow label="월 비용절감" value={krw(action.estimated_monthly_cost_saving_krw)} />
-                    <InfoRow label="월 탄소절감" value={ni(action.estimated_monthly_co2_saving_kg, ' kg')} />
-                    <InfoRow
-                      label="투자비"
-                      value={
-                        action.investment_range_krw
-                          ? `${krw(action.investment_range_krw[0])}~${krw(action.investment_range_krw[1])}`
-                          : '—'
-                      }
-                    />
-                    <InfoRow
-                      label="BEP"
-                      value={
-                        action.bep_months_range
-                          ? `${action.bep_months_range[0]}~${action.bep_months_range[1]}개월`
-                          : '—'
-                      }
-                    />
-                  </div>
-                </li>
-              ))}
+              {report.priority_actions.map((action) => {
+                const matchedAction =
+                  findActionById(action.action_id ?? null) ?? findActionByTitle(action.title);
+                return (
+                  <li key={`${action.action_id ?? action.title}-${action.why_priority}`} className="rounded-xl border border-slate-100 bg-slate-50 p-3">
+                    <div className="flex items-start justify-between gap-2">
+                      <strong className="text-sm font-semibold text-slate-900">{action.title}</strong>
+                      {action.estimated_saving_pct != null && (
+                        <span className="shrink-0 rounded-full bg-emerald-50 px-2.5 py-0.5 text-xs font-bold text-emerald-700">
+                          ~{action.estimated_saving_pct}%
+                        </span>
+                      )}
+                    </div>
+                    <p className="mt-1.5 text-sm text-slate-500">{action.why_priority}</p>
+                    <div className="mt-2 divide-y divide-slate-100 border-t border-slate-200 pt-1">
+                      <InfoRow label="월 비용절감" value={krw(action.estimated_monthly_cost_saving_krw)} />
+                      <InfoRow label="월 탄소절감" value={ni(action.estimated_monthly_co2_saving_kg, ' kg')} />
+                      <InfoRow
+                        label="투자비"
+                        value={
+                          action.investment_range_krw
+                            ? `${krw(action.investment_range_krw[0])}~${krw(action.investment_range_krw[1])}`
+                            : '예상치 없음'
+                        }
+                      />
+                      <InfoRow
+                        label="BEP"
+                        value={bepYears(action.bep_months_range)}
+                      />
+                      {action.estimate_note && <InfoRow label="산정 기준" value={action.estimate_note} />}
+                    </div>
+                    {matchedAction && <ActionEngagement action={matchedAction} building={building} />}
+                  </li>
+                );
+              })}
             </ul>
           </div>
 
