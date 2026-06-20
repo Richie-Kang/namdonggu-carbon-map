@@ -51,7 +51,7 @@ const CO2_QUINTILE_COLOR: ExpressionSpecification = [
 
 const POPULATION_COLOR: ExpressionSpecification = [
   'step',
-  ['get', 'population_pred'],
+  ['coalesce', ['get', 'population_pred'], 0],
   '#eff6ff',
   5,  '#bfdbfe',
   20, '#60a5fa',
