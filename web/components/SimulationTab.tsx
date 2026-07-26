@@ -29,6 +29,12 @@ type PredictRes = {
   warnings?: string[];
 };
 
+const WARNING_LABELS: Record<string, string> = {
+  clamped_above_10x_current: '예측값이 현재의 10배를 넘어 상한값으로 표시했습니다.',
+  model_returned_empty_using_rule_based: '인구 모델 응답이 없어 기준값으로 계산했습니다.',
+  model_load_failed_using_rule_based: '인구 모델을 불러오지 못해 기준값으로 계산했습니다.',
+};
+
 function debounce<T extends (...args: never[]) => void>(fn: T, ms = 300): T {
   let timer: ReturnType<typeof setTimeout> | undefined;
   return ((...args: Parameters<T>) => {
@@ -83,12 +89,9 @@ export function SimulationTab({
   const sim = useAppStore((s) => s.simInputs);
   const setSim = useAppStore((s) => s.setSim);
   const [result, setResult] = useState<PredictRes | null>(null);
+  const [error, setError] = useState<string | null>(null);
   const [popBaseline, setPopBaseline] = useState<number | null>(null);
   const [popTarget, setPopTarget] = useState<number | null>(null);
-  const [modelEnergyBaseline, setModelEnergyBaseline] = useState<{
-    electricity_kwh: number;
-    gas_m3: number;
-  } | null>(null);
 
   const [usageUnit, setUsageUnit] = useState<UsageUnit>('monthly');
   const [elecDeltaPct, setElecDeltaPct] = useState(0);
@@ -106,9 +109,9 @@ export function SimulationTab({
   // Reset all overrides whenever a new building is opened.
   useEffect(() => {
     setResult(null);
+    setError(null);
     setPopBaseline(null);
     setPopTarget(null);
-    setModelEnergyBaseline(null);
     setUsageUnit('monthly');
     setElecDeltaPct(0);
     setGasDeltaPct(0);
@@ -121,11 +124,15 @@ export function SimulationTab({
           use_main_code: string;
           land_use_category: string;
           target_population?: number;
-          target_electricity_kwh?: number;
-          target_gas_m3?: number;
+          baseline_population?: number;
+          baseline_electricity_kwh: number;
+          baseline_gas_m3: number;
+          electricity_delta_pct: number;
+          gas_delta_pct: number;
           industry_code?: string;
         }) => {
           setLoading(true);
+          setError(null);
           try {
             const r = await fetch('/api/predict', {
               method: 'POST',
@@ -133,14 +140,17 @@ export function SimulationTab({
               body: JSON.stringify({ ...payload, building_id: buildingId }),
             });
             if (!r.ok) {
+              setError('계산 요청을 처리하지 못했습니다.');
               setResult(null);
               return;
             }
             const data = (await r.json()) as PredictRes;
             setResult(data);
             setPopBaseline((prev) => prev ?? data.population_baseline);
-            setPopTarget((prev) => prev ?? Math.round(data.population_baseline));
-            setModelEnergyBaseline((prev) => prev ?? data.breakdown);
+            setPopTarget((prev) => prev ?? data.population_baseline);
+          } catch {
+            setError('계산 서버에 연결하지 못했습니다.');
+            setResult(null);
           } finally {
             setLoading(false);
           }
@@ -157,25 +167,26 @@ export function SimulationTab({
       '04000';
     const landCat = sim.land_use_category || 'commercial';
     const fallbackElectricity = electricityKwhFromCo2(current.co2_kg_month);
+    const hasMeasuredEnergy = current.electricity_kwh > 0 || current.gas_m3 > 0;
     const baseElectricity = current.electricity_kwh > 0
       ? current.electricity_kwh
-      : modelEnergyBaseline?.electricity_kwh ?? fallbackElectricity;
-    const baseGas = current.gas_m3 > 0
-      ? current.gas_m3
-      : modelEnergyBaseline?.gas_m3 ?? 0;
-    const hasElectricityBase = baseElectricity > 0;
-    const hasGasBase = baseGas > 0;
+      : hasMeasuredEnergy ? 0 : fallbackElectricity;
+    const baseGas = current.gas_m3 > 0 ? current.gas_m3 : 0;
     callPredict({
       use_main_code: useCode,
       land_use_category: landCat,
       target_population: popTarget ?? undefined,
-      target_electricity_kwh: hasElectricityBase ? applyUsageDelta(baseElectricity, elecDeltaPct) : undefined,
-      target_gas_m3: hasGasBase ? applyUsageDelta(baseGas, gasDeltaPct) : undefined,
+      baseline_population: popBaseline ?? undefined,
+      baseline_electricity_kwh: baseElectricity,
+      baseline_gas_m3: baseGas,
+      electricity_delta_pct: elecDeltaPct,
+      gas_delta_pct: gasDeltaPct,
       industry_code: industryCode ?? undefined,
     });
   }, [
     sim.use_main_code,
     sim.land_use_category,
+    popBaseline,
     popTarget,
     elecDeltaPct,
     gasDeltaPct,
@@ -185,7 +196,6 @@ export function SimulationTab({
     current.electricity_kwh,
     current.gas_m3,
     current.co2_kg_month,
-    modelEnergyBaseline,
   ]);
 
   const delta = result ? result.co2_pred - current.co2_kg_month : 0;
@@ -193,24 +203,23 @@ export function SimulationTab({
   const color = delta > 0 ? 'text-red-600' : delta < 0 ? 'text-emerald-700' : 'text-slate-700';
 
   const currentLabel = labelForUseCode((currentBuilding.use_main_code as string) ?? null);
-  const baselineInt = popBaseline ? Math.round(popBaseline) : null;
+  const baselineInt = popBaseline != null ? Math.round(popBaseline) : null;
   const targetInt = popTarget ?? baselineInt ?? 0;
   const popDelta = baselineInt != null ? targetInt - baselineInt : 0;
   const sliderMax = Math.max(50, (baselineInt ?? 10) * 4);
 
   const fallbackElectricity = electricityKwhFromCo2(current.co2_kg_month);
+  const hasMeasuredEnergy = current.electricity_kwh > 0 || current.gas_m3 > 0;
   const baseElectricity = current.electricity_kwh > 0
     ? current.electricity_kwh
-    : modelEnergyBaseline?.electricity_kwh ?? fallbackElectricity;
-  const baseGas = current.gas_m3 > 0
-    ? current.gas_m3
-    : modelEnergyBaseline?.gas_m3 ?? 0;
+    : hasMeasuredEnergy ? 0 : fallbackElectricity;
+  const baseGas = current.gas_m3 > 0 ? current.gas_m3 : 0;
   const effectiveCurrent = {
     electricity_kwh: baseElectricity,
     gas_m3: baseGas,
     co2_kg_month: current.co2_kg_month,
   };
-  const usingCo2Fallback = current.electricity_kwh <= 0 && !modelEnergyBaseline && fallbackElectricity > 0;
+  const usingCo2Fallback = !hasMeasuredEnergy && fallbackElectricity > 0;
   const elecVal = applyUsageDelta(baseElectricity, elecDeltaPct);
   const gasVal = applyUsageDelta(baseGas, gasDeltaPct);
   const displayPeriod = unitSuffix(usageUnit);
@@ -344,7 +353,7 @@ export function SimulationTab({
             {baselineInt != null && (
               <button
                 type="button"
-                onClick={() => setPopTarget(baselineInt)}
+                onClick={() => setPopTarget(popBaseline)}
                 className="mt-1.5 text-[11px] text-slate-400 underline hover:text-slate-600"
               >
                 현재 값으로 재설정
@@ -430,8 +439,8 @@ export function SimulationTab({
         <div className={`rounded-xl border-l-4 bg-slate-50 px-3 py-3 ${resultBorderColor}`}>
           <p className="text-xs text-slate-400">시뮬레이션 CO₂</p>
           <div className="mt-0.5 flex items-end justify-between gap-2">
-            <p className="text-3xl font-bold leading-none tracking-tight text-slate-800">
-              {result ? nf(result.co2_pred) : '—'}
+            <p className="text-3xl font-bold leading-none tracking-tight text-slate-800" aria-live="polite">
+              {result ? nf(result.co2_pred) : error ? '계산 오류' : '—'}
               <span className="ml-1.5 text-sm font-normal text-slate-400">kg/월</span>
             </p>
             {result && (
@@ -445,9 +454,12 @@ export function SimulationTab({
             <span className="font-medium text-slate-700">{nf(current.co2_kg_month)} kg/월</span>
           </div>
           {loading && <p className="mt-2 text-[11px] text-slate-400">계산 중…</p>}
+          {error && <p className="mt-2 text-[11px] text-red-600">{error}</p>}
         </div>
         {result?.warnings?.map((w) => (
-          <p key={w} className="mt-2 text-[11px] text-amber-700">⚠ {w}</p>
+          <p key={w} className="mt-2 text-[11px] text-amber-700">
+            {WARNING_LABELS[w] ?? '일부 입력값을 보정해 계산했습니다.'}
+          </p>
         ))}
       </div>
 
