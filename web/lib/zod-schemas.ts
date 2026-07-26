@@ -11,7 +11,7 @@ export const BuildingId = z.string().regex(/^[A-Za-z0-9_-]{1,40}$/);
 
 export const Pnu = z.string().regex(/^\d{19}$/, 'PNU must be 19 digits');
 
-export const LandUseCategory = z.enum(['residential', 'commercial', 'industrial', 'other']);
+export const LandUseCategory = z.enum(['residential', 'commercial', 'industrial', 'public', 'other']);
 
 export const UseMainCode = z.string().regex(/^\d{1,10}$/);
 
@@ -24,10 +24,16 @@ export const PredictRequest = z.object({
   // value wins.
   pop_delta_pct: z.number().min(-100).max(500).optional(),
   target_population: z.number().min(0).max(100000).optional(),
-  // Direct energy overrides — when provided, bypass the population model for
-  // that energy source. Both may be set independently.
-  target_electricity_kwh: z.number().min(0).max(10_000_000).optional(),
-  target_gas_m3: z.number().min(0).max(1_000_000).optional(),
+  baseline_population: z.number().min(0).max(100000).optional(),
+  // Observed monthly usage anchors the scenario to the selected building.
+  // Percentage changes are then composed with population/use/land changes.
+  baseline_electricity_kwh: z.number().min(0).max(1_000_000_000_000).optional(),
+  baseline_gas_m3: z.number().min(0).max(1_000_000_000_000).optional(),
+  electricity_delta_pct: z.number().min(-100).max(300).optional(),
+  gas_delta_pct: z.number().min(-100).max(300).optional(),
+  // Legacy absolute overrides remain supported for older clients.
+  target_electricity_kwh: z.number().min(0).max(1_000_000_000_000).optional(),
+  target_gas_m3: z.number().min(0).max(1_000_000_000_000).optional(),
   // KSIC 업종코드 — when present, apply industry-specific emission multiplier.
   industry_code: z.string().max(20).optional(),
 });

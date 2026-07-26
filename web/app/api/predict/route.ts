@@ -5,6 +5,8 @@ import { totalCo2 } from '@/lib/emission-factors';
 import { getIndustryMultiplier } from '@/lib/industry-factors';
 import { getModel } from '@/lib/onnx';
 import { resolveBuildingHeight } from '@/lib/building-metrics';
+import { categoryForUseCode } from '@/lib/use-codes';
+import { calculateScenarioEnergy, type EnergyCoefficients } from '@/lib/simulation-model';
 
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
@@ -12,6 +14,7 @@ export const dynamic = 'force-dynamic';
 const RESIDENTIAL_DEFAULT = { elec: 200, gas: 18 }; // kWh/person, m3/person
 const COMMERCIAL_DEFAULT = { elec: 80, gas: 4 };
 const INDUSTRIAL_DEFAULT = { elec: 500, gas: 30 };
+const PUBLIC_DEFAULT = { elec: 150, gas: 10 };
 
 async function fetchBuilding(building_id: string) {
   const { data } = await supabasePublic
@@ -38,6 +41,7 @@ function defaultsFor(category: string) {
   if (category === 'residential') return RESIDENTIAL_DEFAULT;
   if (category === 'industrial') return INDUSTRIAL_DEFAULT;
   if (category === 'commercial') return COMMERCIAL_DEFAULT;
+  if (category === 'public') return PUBLIC_DEFAULT;
   return COMMERCIAL_DEFAULT;
 }
 
@@ -58,6 +62,11 @@ export async function POST(req: NextRequest) {
     land_use_category,
     pop_delta_pct,
     target_population,
+    baseline_population,
+    baseline_electricity_kwh,
+    baseline_gas_m3,
+    electricity_delta_pct,
+    gas_delta_pct,
     target_electricity_kwh,
     target_gas_m3,
     industry_code,
@@ -110,37 +119,82 @@ export async function POST(req: NextRequest) {
   }
 
   // Resolve effective population: absolute target wins, else %-delta, else baseline.
+  // A client-provided baseline stays stable while use/land inputs are changed.
+  const populationBaseline = baseline_population ?? popPred;
   let popAdj: number;
   if (typeof target_population === 'number') {
     popAdj = Math.max(0, target_population);
   } else if (typeof pop_delta_pct === 'number') {
-    popAdj = popPred * (1 + pop_delta_pct / 100);
+    popAdj = populationBaseline * (1 + pop_delta_pct / 100);
   } else {
-    popAdj = popPred;
+    popAdj = populationBaseline;
   }
 
   // reason: use the per-use_main_code coefficients learned in ai/train.py
   // (meta.energy_coeffs) so changing the 주용도 dropdown actually moves the
   // simulated CO2 number. Fall back to the broad category defaults when no
   // coefficient is available for the requested code.
-  let coeff: { elec_kwh_per_pop_month?: number; gas_m3_per_pop_month?: number } | undefined;
+  let requestedCoeff: EnergyCoefficients | undefined;
+  let currentCoeff: EnergyCoefficients | undefined;
   try {
     const { meta } = await getModel();
-    coeff = meta.energy_coeffs?.[use_main_code];
+    requestedCoeff = meta.energy_coeffs?.[use_main_code];
+    currentCoeff = meta.energy_coeffs?.[building.use_main_code ?? ''];
   } catch {
-    coeff = undefined;
+    requestedCoeff = undefined;
+    currentCoeff = undefined;
   }
 
   // Population model output
   let electricity_kwh: number;
   let gas_m3: number;
-  if (coeff && Number.isFinite(coeff.elec_kwh_per_pop_month) && Number.isFinite(coeff.gas_m3_per_pop_month)) {
-    electricity_kwh = Math.max(0, popAdj * (coeff.elec_kwh_per_pop_month ?? 0));
-    gas_m3 = Math.max(0, popAdj * (coeff.gas_m3_per_pop_month ?? 0));
+  if (
+    requestedCoeff &&
+    Number.isFinite(requestedCoeff.elec_kwh_per_pop_month) &&
+    Number.isFinite(requestedCoeff.gas_m3_per_pop_month)
+  ) {
+    electricity_kwh = Math.max(0, popAdj * (requestedCoeff.elec_kwh_per_pop_month ?? 0));
+    gas_m3 = Math.max(0, popAdj * (requestedCoeff.gas_m3_per_pop_month ?? 0));
   } else {
     const defaults = defaultsFor(land_use_category);
     electricity_kwh = Math.max(0, popAdj * defaults.elec);
     gas_m3 = Math.max(0, popAdj * defaults.gas);
+  }
+
+  const hasObservedBaseline =
+    typeof baseline_electricity_kwh === 'number' ||
+    typeof baseline_gas_m3 === 'number';
+  if (hasObservedBaseline) {
+    const currentUseCode = building.use_main_code ?? use_main_code;
+    const currentCategory = categoryForUseCode(currentUseCode);
+    const requestedCategory = categoryForUseCode(use_main_code);
+    const scenario = calculateScenarioEnergy({
+      baseline: {
+        electricity_kwh: baseline_electricity_kwh,
+        gas_m3: baseline_gas_m3,
+      },
+      populationBaseline,
+      populationUsed: popAdj,
+      currentUseCode,
+      requestedUseCode: use_main_code,
+      currentUseCategory: currentCategory,
+      requestedUseCategory: requestedCategory,
+      currentLandUse: currentCategory,
+      requestedLandUse: land_use_category,
+      currentCoefficients: currentCoeff,
+      requestedCoefficients: requestedCoeff,
+      electricityDeltaPct: electricity_delta_pct,
+      gasDeltaPct: gas_delta_pct,
+    });
+    electricity_kwh = scenario.electricity_kwh;
+    gas_m3 = scenario.gas_m3;
+  } else {
+    if (typeof electricity_delta_pct === 'number') {
+      electricity_kwh *= Math.max(0, 1 + electricity_delta_pct / 100);
+    }
+    if (typeof gas_delta_pct === 'number') {
+      gas_m3 *= Math.max(0, 1 + gas_delta_pct / 100);
+    }
   }
 
   // Direct energy overrides bypass the population model for each source.
@@ -170,7 +224,7 @@ export async function POST(req: NextRequest) {
     co2_pred,
     delta_kg,
     breakdown: { electricity_kwh, gas_m3 },
-    population_baseline: popPred,
+    population_baseline: populationBaseline,
     population_used: popAdj,
     model_version: modelVersion,
     industry_multiplier: industryMultiplier !== 1.0 ? industryMultiplier : undefined,
